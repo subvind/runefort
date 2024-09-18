@@ -6,6 +6,14 @@ export class GameEngine {
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
+  private player: THREE.Mesh;
+  private board: THREE.Group;
+  private boardSize: number = 8;
+  private squareSize: number = 1;
+  private cameraDistance: number = 10;
+  private cameraRotation: number = 0;
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -15,42 +23,125 @@ export class GameEngine {
     container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-
-    this.camera.position.z = 5;
+    this.controls.enablePan = false;
+    this.controls.enableRotate = false;
+    this.controls.enableZoom = false;
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
 
     this.init();
 
     window.addEventListener('resize', () => this.onWindowResize(container), false);
+    this.renderer.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
+    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
+    window.addEventListener('wheel', (event) => this.onWheel(event), false);
   }
 
   private init(): void {
-    // Add a simple cube to represent a game object
-    const geometry = new THREE.BoxGeometry();
-    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-    const cube = new THREE.Mesh(geometry, material);
-    this.scene.add(cube);
+    this.createBoard();
+    this.createPlayer();
+    this.addLighting();
+    this.updateCameraPosition();
+    this.animate();
+  }
 
-    // Add some basic lighting
+  private createBoard(): void {
+    this.board = new THREE.Group();
+    const boardOffset = (this.boardSize * this.squareSize) / 2 - this.squareSize / 2;
+
+    for (let x = 0; x < this.boardSize; x++) {
+      for (let z = 0; z < this.boardSize; z++) {
+        const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
+        const material = new THREE.MeshPhongMaterial({
+          color: (x + z) % 2 === 0 ? 0xFFFFFF : 0x000000
+        });
+        const square = new THREE.Mesh(geometry, material);
+        square.position.set(
+          x * this.squareSize - boardOffset,
+          0,
+          z * this.squareSize - boardOffset
+        );
+        this.board.add(square);
+      }
+    }
+    this.scene.add(this.board);
+  }
+
+  private createPlayer(): void {
+    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+    const material = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    this.player = new THREE.Mesh(geometry, material);
+    this.player.position.set(0, 0.3, 0);
+    this.scene.add(this.player);
+  }
+
+  private addLighting(): void {
     const ambientLight = new THREE.AmbientLight(0x404040);
     this.scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(1, 1, 1);
     this.scene.add(directionalLight);
-
-    // Start the render loop
-    this.animate();
   }
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
-    this.controls.update();
+    this.updateCameraPosition();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private updateCameraPosition(): void {
+    const playerPosition = this.player.position;
+    const cameraOffset = new THREE.Vector3(
+      Math.sin(this.cameraRotation) * this.cameraDistance,
+      this.cameraDistance * 0.5,
+      Math.cos(this.cameraRotation) * this.cameraDistance
+    );
+    this.camera.position.copy(playerPosition).add(cameraOffset);
+    this.camera.lookAt(playerPosition);
   }
 
   private onWindowResize(container: HTMLElement): void {
     this.camera.aspect = container.clientWidth / container.clientHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(container.clientWidth, container.clientHeight);
+  }
+
+  private onMouseClick(event: MouseEvent): void {
+    this.mouse.x = (event.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / this.renderer.domElement.clientHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const intersects = this.raycaster.intersectObjects(this.board.children);
+
+    if (intersects.length > 0) {
+      const clickedSquare = intersects[0].object;
+      this.movePlayerToSquare(clickedSquare);
+    }
+  }
+
+  private movePlayerToSquare(square: THREE.Object3D): void {
+    this.player.position.x = square.position.x;
+    this.player.position.z = square.position.z;
+    this.player.position.y = 0.3; // Slightly above the board
+  }
+
+  private onKeyDown(event: KeyboardEvent): void {
+    const rotationSpeed = 0.1;
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.cameraRotation += rotationSpeed;
+        break;
+      case 'ArrowRight':
+        this.cameraRotation -= rotationSpeed;
+        break;
+    }
+  }
+
+  private onWheel(event: WheelEvent): void {
+    const zoomSpeed = 0.1;
+    this.cameraDistance += event.deltaY * zoomSpeed;
+    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
   }
 }

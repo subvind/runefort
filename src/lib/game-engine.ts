@@ -5,13 +5,15 @@ export class GameEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private controls: OrbitControls;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
   private player: THREE.Mesh;
   private board: THREE.Group;
   private boardSize: number = 8;
   private squareSize: number = 1;
+  private cameraDistance: number = 10;
+  private cameraRotation: number = 0;
+  private cameraTilt: number = Math.PI / 4; // Initial tilt angle
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -20,23 +22,22 @@ export class GameEngine {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
-
-    this.camera.position.set(0, 10, 10);
-    this.camera.lookAt(0, 0, 0);
 
     this.init();
 
     window.addEventListener('resize', () => this.onWindowResize(container), false);
     this.renderer.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
+    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
+    window.addEventListener('wheel', (event) => this.onWheel(event), false);
   }
 
   private init(): void {
     this.createBoard();
     this.createPlayer();
     this.addLighting();
+    this.updateCameraPosition();
     this.animate();
   }
 
@@ -81,8 +82,19 @@ export class GameEngine {
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
-    this.controls.update();
+    this.updateCameraPosition();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private updateCameraPosition(): void {
+    const playerPosition = this.player.position;
+    const cameraOffset = new THREE.Vector3(
+      Math.sin(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance
+    );
+    this.camera.position.copy(playerPosition).add(cameraOffset);
+    this.camera.lookAt(playerPosition);
   }
 
   private onWindowResize(container: HTMLElement): void {
@@ -109,5 +121,34 @@ export class GameEngine {
     this.player.position.x = square.position.x;
     this.player.position.z = square.position.z;
     this.player.position.y = 0.3; // Slightly above the board
+  }
+
+  private onKeyDown(event: KeyboardEvent): void {
+    const rotationSpeed = 0.1;
+    const tiltSpeed = 0.05;
+    switch (event.key) {
+      case 'a':
+      case 'ArrowLeft':
+        this.cameraRotation += rotationSpeed;
+        break;
+      case 'd':
+      case 'ArrowRight':
+        this.cameraRotation -= rotationSpeed;
+        break;
+      case 'w':
+      case 'ArrowUp':
+        this.cameraTilt = Math.max(0.1, this.cameraTilt - tiltSpeed);
+        break;
+      case 's':
+      case 'ArrowDown':
+        this.cameraTilt = Math.min(Math.PI / 2, this.cameraTilt + tiltSpeed);
+        break;
+    }
+  }
+
+  private onWheel(event: WheelEvent): void {
+    const zoomSpeed = 0.1;
+    this.cameraDistance += event.deltaY * zoomSpeed;
+    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
   }
 }
