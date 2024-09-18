@@ -1,0 +1,18 @@
+{
+  "name": "runescape-clone-electron",
+  "version": "1.0.0",
+  "description": "RuneScape Clone in Electron",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "tsc && electron . 2>&1 | tee start:dev.stdout.txt",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "electron": "^13.0.0",
+    "typescript": "^4.3.2",
+    "@types/three": "^0.128.0"
+  },
+  "dependencies": {
+    "three": "^0.128.0"
+  }
+}
