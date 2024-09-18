@@ -2,27 +2,15 @@ import * as THREE from 'three';
 
 export class CameraManager {
   private camera: THREE.PerspectiveCamera;
-  private player: THREE.Mesh | null;
   private cameraDistance: number = 10;
   private cameraRotation: number = 0;
   private cameraTilt: number = Math.PI / 4; // Initial tilt angle
 
-  constructor(camera: THREE.PerspectiveCamera, player: THREE.Mesh | null) {
-    this.camera = camera;
-    this.player = player;
+  constructor(aspect: number) {
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
   }
 
-  setPlayer(player: THREE.Mesh): void {
-    this.player = player;
-  }
-
-  updateCameraPosition(): void {
-    if (!this.player) {
-      console.warn('Player not set in CameraManager');
-      return;
-    }
-
-    const playerPosition = this.player.position;
+  updateCameraPosition(playerPosition: THREE.Vector3): void {
     const cameraOffset = new THREE.Vector3(
       Math.sin(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance,
       Math.cos(this.cameraTilt) * this.cameraDistance,
@@ -32,15 +20,32 @@ export class CameraManager {
     this.camera.lookAt(playerPosition);
   }
 
-  rotateCamera(amount: number): void {
-    this.cameraRotation += amount;
+  updateAspect(aspect: number): void {
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
   }
 
-  tiltCamera(amount: number): void {
-    this.cameraTilt = Math.max(0.1, Math.min(Math.PI / 2, this.cameraTilt + amount));
+  getCamera(): THREE.PerspectiveCamera {
+    return this.camera;
   }
 
-  zoomCamera(amount: number): void {
-    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance + amount));
+  rotateCamera(direction: 'left' | 'right'): void {
+    const rotationSpeed = 0.1;
+    this.cameraRotation += direction === 'left' ? rotationSpeed : -rotationSpeed;
+  }
+
+  tiltCamera(direction: 'up' | 'down'): void {
+    const tiltSpeed = 0.05;
+    if (direction === 'up') {
+      this.cameraTilt = Math.max(0.1, this.cameraTilt - tiltSpeed);
+    } else {
+      this.cameraTilt = Math.min(Math.PI / 2, this.cameraTilt + tiltSpeed);
+    }
+  }
+
+  zoom(delta: number): void {
+    const zoomSpeed = 0.1;
+    this.cameraDistance += delta * zoomSpeed;
+    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
   }
 }

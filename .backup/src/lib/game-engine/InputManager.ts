@@ -1,36 +1,21 @@
 import * as THREE from 'three';
-import { BoardManager } from './BoardManager';
-import { PlayerManager } from './PlayerManager';
 import { CameraManager } from './CameraManager';
+import { PlayerManager } from './PlayerManager';
+import { BoardManager } from './BoardManager';
 
 export class InputManager {
-  private domElement: HTMLElement;
-  private camera: THREE.PerspectiveCamera;
-  private boardManager: BoardManager;
-  private playerManager: PlayerManager;
-  private cameraManager: CameraManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
 
   constructor(
-    domElement: HTMLElement,
-    camera: THREE.PerspectiveCamera,
-    boardManager: BoardManager,
-    playerManager: PlayerManager,
-    cameraManager: CameraManager
+    private domElement: HTMLCanvasElement,
+    private cameraManager: CameraManager,
+    private playerManager: PlayerManager,
+    private boardManager: BoardManager
   ) {
-    this.domElement = domElement;
-    this.camera = camera;
-    this.boardManager = boardManager;
-    this.playerManager = playerManager;
-    this.cameraManager = cameraManager;
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
-    this.setupEventListeners();
-  }
-
-  private setupEventListeners(): void {
     this.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
     window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
     window.addEventListener('wheel', (event) => this.onWheel(event), false);
@@ -40,7 +25,7 @@ export class InputManager {
     this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
 
-    this.raycaster.setFromCamera(this.mouse, this.camera);
+    this.raycaster.setFromCamera(this.mouse, this.cameraManager.getCamera());
 
     const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
 
@@ -51,30 +36,27 @@ export class InputManager {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    const rotationSpeed = 0.1;
-    const tiltSpeed = 0.05;
     switch (event.key) {
       case 'a':
       case 'ArrowLeft':
-        this.cameraManager.rotateCamera(rotationSpeed);
+        this.cameraManager.rotateCamera('left');
         break;
       case 'd':
       case 'ArrowRight':
-        this.cameraManager.rotateCamera(-rotationSpeed);
+        this.cameraManager.rotateCamera('right');
         break;
       case 'w':
       case 'ArrowUp':
-        this.cameraManager.tiltCamera(-tiltSpeed);
+        this.cameraManager.tiltCamera('up');
         break;
       case 's':
       case 'ArrowDown':
-        this.cameraManager.tiltCamera(tiltSpeed);
+        this.cameraManager.tiltCamera('down');
         break;
     }
   }
 
   private onWheel(event: WheelEvent): void {
-    const zoomSpeed = 0.1;
-    this.cameraManager.zoomCamera(event.deltaY * zoomSpeed);
+    this.cameraManager.zoom(event.deltaY);
   }
 }

@@ -272,6 +272,118 @@ export function dot(a: V3, b: V3): number {
 
 You will now be given the actual INPUT you must work with.
 
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/CameraManager.ts">
+import * as THREE from 'three';
+
+export class CameraManager {
+  private camera: THREE.PerspectiveCamera;
+  private cameraDistance: number = 10;
+  private cameraRotation: number = 0;
+  private cameraTilt: number = Math.PI / 4; // Initial tilt angle
+
+  constructor(aspect: number) {
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+  }
+
+  updateCameraPosition(playerPosition: THREE.Vector3): void {
+    const cameraOffset = new THREE.Vector3(
+      Math.sin(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance
+    );
+    this.camera.position.copy(playerPosition).add(cameraOffset);
+    this.camera.lookAt(playerPosition);
+  }
+
+  updateAspect(aspect: number): void {
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+  }
+
+  getCamera(): THREE.PerspectiveCamera {
+    return this.camera;
+  }
+
+  rotateCamera(direction: 'left' | 'right'): void {
+    const rotationSpeed = 0.1;
+    this.cameraRotation += direction === 'left' ? rotationSpeed : -rotationSpeed;
+  }
+
+  tiltCamera(direction: 'up' | 'down'): void {
+    const tiltSpeed = 0.05;
+    if (direction === 'up') {
+      this.cameraTilt = Math.max(0.1, this.cameraTilt - tiltSpeed);
+    } else {
+      this.cameraTilt = Math.min(Math.PI / 2, this.cameraTilt + tiltSpeed);
+    }
+  }
+
+  zoom(delta: number): void {
+    const zoomSpeed = 0.1;
+    this.cameraDistance += delta * zoomSpeed;
+    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
+  }
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/GameEngine.ts">
+import * as THREE from 'three';
+import { BoardManager } from './BoardManager';
+import { PlayerManager } from './PlayerManager';
+import { CameraManager } from './CameraManager';
+import { InputManager } from './InputManager';
+
+export class GameEngine {
+  private scene: THREE.Scene;
+  private renderer: THREE.WebGLRenderer;
+  private boardManager: BoardManager;
+  private playerManager: PlayerManager;
+  private cameraManager: CameraManager;
+  private inputManager: InputManager;
+
+  constructor(container: HTMLElement) {
+    this.scene = new THREE.Scene();
+    this.renderer = new THREE.WebGLRenderer();
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(this.renderer.domElement);
+
+    this.boardManager = new BoardManager(this.scene);
+    this.playerManager = new PlayerManager(this.scene);
+    this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
+    this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
+
+    this.init();
+
+    window.addEventListener('resize', () => this.onWindowResize(container), false);
+  }
+
+  private init(): void {
+    this.boardManager.createBoard();
+    this.playerManager.createPlayer();
+    this.addLighting();
+    this.animate();
+  }
+
+  private addLighting(): void {
+    const ambientLight = new THREE.AmbientLight(0x404040);
+    this.scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(1, 1, 1);
+    this.scene.add(directionalLight);
+  }
+
+  private animate(): void {
+    requestAnimationFrame(() => this.animate());
+    this.cameraManager.updateCameraPosition(this.playerManager.getPlayerPosition());
+    this.renderer.render(this.scene, this.cameraManager.getCamera());
+  }
+
+  private onWindowResize(container: HTMLElement): void {
+    this.cameraManager.updateAspect(container.clientWidth / container.clientHeight);
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+  }
+}
+</FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/renderer.ts">
 import { GameEngine } from './game-engine/GameEngine';
 
@@ -281,52 +393,54 @@ if (container) {
   const game = new GameEngine(container);
 }
 </FILE>
-<FILE path="src/lib/game-engine.ts" TARGET>
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+<FILE path="/home/travis/Projects/runefort/src/renderer.ts">
+/**
+ * This file will automatically be loaded by webpack and run in the "renderer" context.
+ * To learn more about the differences between the "main" and the "renderer" context in
+ * Electron, visit:
+ *
+ * https://electronjs.org/docs/latest/tutorial/process-model
+ *
+ * By default, Node.js integration in this file is disabled. When enabling Node.js integration
+ * in a renderer process, please be aware of potential security implications. You can read
+ * more about security risks here:
+ *
+ * https://electronjs.org/docs/tutorial/security
+ *
+ * To enable Node.js integration in this file, open up `main.js` and enable the `nodeIntegration`
+ * flag:
+ *
+ * ```
+ *  // Create the browser window.
+ *  mainWindow = new BrowserWindow({
+ *    width: 800,
+ *    height: 600,
+ *    webPreferences: {
+ *      nodeIntegration: true
+ *    }
+ *  });
+ * ```
+ */
 
-export class GameEngine {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
-  private raycaster: THREE.Raycaster;
-  private mouse: THREE.Vector2;
-  private player: THREE.Mesh;
+import './index.css';
+
+console.log('👋 This message is being logged by "renderer.js", included via webpack');
+
+import "./lib/renderer.ts"
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
+import * as THREE from 'three';
+
+export class BoardManager {
   private board: THREE.Group;
   private boardSize: number = 8;
   private squareSize: number = 1;
-  private cameraDistance: number = 10;
-  private cameraRotation: number = 0;
-  private cameraTilt: number = Math.PI / 4; // Initial tilt angle
 
-  constructor(container: HTMLElement) {
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer();
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(this.renderer.domElement);
-
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
-
-    this.init();
-
-    window.addEventListener('resize', () => this.onWindowResize(container), false);
-    this.renderer.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
-    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
-    window.addEventListener('wheel', (event) => this.onWheel(event), false);
-  }
-
-  private init(): void {
-    this.createBoard();
-    this.createPlayer();
-    this.addLighting();
-    this.updateCameraPosition();
-    this.animate();
-  }
-
-  private createBoard(): void {
+  constructor(private scene: THREE.Scene) {
     this.board = new THREE.Group();
+  }
+
+  createBoard(): void {
     const boardOffset = (this.boardSize * this.squareSize) / 2 - this.squareSize / 2;
 
     for (let x = 0; x < this.boardSize; x++) {
@@ -347,7 +461,20 @@ export class GameEngine {
     this.scene.add(this.board);
   }
 
-  private createPlayer(): void {
+  getBoard(): THREE.Group {
+    return this.board;
+  }
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/PlayerManager.ts">
+import * as THREE from 'three';
+
+export class PlayerManager {
+  private player: THREE.Mesh;
+
+  constructor(private scene: THREE.Scene) {}
+
+  createPlayer(): void {
     const geometry = new THREE.SphereGeometry(0.3, 32, 32);
     const material = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
     this.player = new THREE.Mesh(geometry, material);
@@ -355,88 +482,81 @@ export class GameEngine {
     this.scene.add(this.player);
   }
 
-  private addLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0x404040);
-    this.scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(1, 1, 1);
-    this.scene.add(directionalLight);
+  getPlayerPosition(): THREE.Vector3 {
+    return this.player.position;
   }
 
-  private animate(): void {
-    requestAnimationFrame(() => this.animate());
-    this.updateCameraPosition();
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  private updateCameraPosition(): void {
-    const playerPosition = this.player.position;
-    const cameraOffset = new THREE.Vector3(
-      Math.sin(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance,
-      Math.cos(this.cameraTilt) * this.cameraDistance,
-      Math.cos(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance
-    );
-    this.camera.position.copy(playerPosition).add(cameraOffset);
-    this.camera.lookAt(playerPosition);
-  }
-
-  private onWindowResize(container: HTMLElement): void {
-    this.camera.aspect = container.clientWidth / container.clientHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-  }
-
-  private onMouseClick(event: MouseEvent): void {
-    this.mouse.x = (event.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / this.renderer.domElement.clientHeight) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-
-    const intersects = this.raycaster.intersectObjects(this.board.children);
-
-    if (intersects.length > 0) {
-      const clickedSquare = intersects[0].object;
-      this.movePlayerToSquare(clickedSquare);
-    }
-  }
-
-  private movePlayerToSquare(square: THREE.Object3D): void {
+  movePlayerToSquare(square: THREE.Object3D): void {
     this.player.position.x = square.position.x;
     this.player.position.z = square.position.z;
     this.player.position.y = 0.3; // Slightly above the board
   }
+}
+</FILE>
+<FILE path="src/lib/game-engine/InputManager.ts" TARGET>
+import * as THREE from 'three';
+import { CameraManager } from './CameraManager';
+import { PlayerManager } from './PlayerManager';
+import { BoardManager } from './BoardManager';
+
+export class InputManager {
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
+
+  constructor(
+    private domElement: HTMLCanvasElement,
+    private cameraManager: CameraManager,
+    private playerManager: PlayerManager,
+    private boardManager: BoardManager
+  ) {
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+
+    this.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
+    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
+    window.addEventListener('wheel', (event) => this.onWheel(event), false);
+  }
+
+  private onMouseClick(event: MouseEvent): void {
+    this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.cameraManager.getCamera());
+
+    const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
+
+    if (intersects.length > 0) {
+      const clickedSquare = intersects[0].object;
+      this.playerManager.movePlayerToSquare(clickedSquare);
+    }
+  }
 
   private onKeyDown(event: KeyboardEvent): void {
-    const rotationSpeed = 0.1;
-    const tiltSpeed = 0.05;
     switch (event.key) {
       case 'a':
       case 'ArrowLeft':
-        this.cameraRotation += rotationSpeed;
+        this.cameraManager.rotateCamera('left');
         break;
       case 'd':
       case 'ArrowRight':
-        this.cameraRotation -= rotationSpeed;
+        this.cameraManager.rotateCamera('right');
         break;
       case 'w':
       case 'ArrowUp':
-        this.cameraTilt = Math.max(0.1, this.cameraTilt - tiltSpeed);
+        this.cameraManager.tiltCamera('up');
         break;
       case 's':
       case 'ArrowDown':
-        this.cameraTilt = Math.min(Math.PI / 2, this.cameraTilt + tiltSpeed);
+        this.cameraManager.tiltCamera('down');
         break;
     }
   }
 
   private onWheel(event: WheelEvent): void {
-    const zoomSpeed = 0.1;
-    this.cameraDistance += event.deltaY * zoomSpeed;
-    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
+    this.cameraManager.zoom(event.deltaY);
   }
 }
 </FILE>
 <REQUEST>
-split this large file up into several smaller files
+zoom in and out more gradual
 </REQUEST>

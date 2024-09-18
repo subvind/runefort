@@ -44,8 +44,7 @@ export class CameraManager {
   }
 
   zoom(delta: number): void {
-    const zoomSpeed = 0.1;
-    this.cameraDistance += delta * zoomSpeed;
-    this.cameraDistance = Math.max(5, Math.min(20, this.cameraDistance));
+    this.cameraDistance += delta;
+    this.cameraDistance = Math.max(2, Math.min(30, this.cameraDistance)); // Adjusted zoom range
   }
 }
