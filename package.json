@@ -1,7 +1,7 @@
 {
-  "name": "runescape-clone-electron",
+  "name": "runefort",
   "version": "1.0.0",
-  "description": "RuneScape Clone in Electron",
+  "description": "mmorpg video game",
   "main": "dist/main.js",
   "scripts": {
     "start": "tsc && electron . 2>&1 | tee start:dev.stdout.txt",
