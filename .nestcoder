@@ -272,6 +272,156 @@ export function dot(a: V3, b: V3): number {
 
 You will now be given the actual INPUT you must work with.
 
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
+import * as THREE from 'three';
+import { MapManager, TerrainType } from './MapManager';
+
+export class BoardManager {
+  private board: THREE.Group;
+  private tileSize: number = 8; // Size of each tile (8x8 squares)
+  private squareSize: number = 1;
+  private loadedTiles: Map<string, THREE.Group> = new Map();
+  private visibleRange: number = 3; // Number of tiles visible in each direction
+  private mapManager: MapManager;
+
+  constructor(private scene: THREE.Scene) {
+    this.board = new THREE.Group();
+    this.scene.add(this.board);
+  }
+
+  createBoard(mapManager: MapManager): void {
+    this.mapManager = mapManager;
+  }
+
+  updateBoard(playerPosition: THREE.Vector3): void {
+    const centerTileX = Math.floor(playerPosition.x / (this.tileSize * this.squareSize));
+    const centerTileZ = Math.floor(playerPosition.z / (this.tileSize * this.squareSize));
+
+    for (let x = centerTileX - this.visibleRange; x <= centerTileX + this.visibleRange; x++) {
+      for (let z = centerTileZ - this.visibleRange; z <= centerTileZ + this.visibleRange; z++) {
+        this.loadTile(x, z);
+      }
+    }
+
+    this.unloadDistantTiles(centerTileX, centerTileZ);
+  }
+
+  private loadTile(tileX: number, tileZ: number): void {
+    const tileKey = `${tileX},${tileZ}`;
+    if (!this.loadedTiles.has(tileKey)) {
+      const tile = this.createTile(tileX, tileZ);
+      this.board.add(tile);
+      this.loadedTiles.set(tileKey, tile);
+    }
+  }
+
+  private createTile(tileX: number, tileZ: number): THREE.Group {
+    const tile = new THREE.Group();
+    const tileOffset = this.tileSize * this.squareSize / 2 - this.squareSize / 2;
+
+    for (let x = 0; x < this.tileSize; x++) {
+      for (let z = 0; z < this.tileSize; z++) {
+        const worldX = x + tileX * this.tileSize;
+        const worldZ = z + tileZ * this.tileSize;
+        const terrainType = this.mapManager.getTerrainType(worldX, worldZ);
+        const geometry = new THREE.BufferGeometry();
+        const material = new THREE.MeshPhongMaterial({
+          color: this.getColorForTerrainType(terrainType),
+          vertexColors: true,
+        });
+
+        const positions = [];
+        const colors = [];
+        const indices = [];
+        const color = new THREE.Color(this.getColorForTerrainType(terrainType));
+
+        for (let i = 0; i <= 1; i++) {
+          for (let j = 0; j <= 1; j++) {
+            const vx = worldX + i;
+            const vz = worldZ + j;
+            const height = this.mapManager.getInterpolatedHeight(vx, vz);
+            positions.push(i * this.squareSize, height, j * this.squareSize);
+            colors.push(color.r, color.g, color.b);
+          }
+        }
+
+        indices.push(0, 1, 2, 2, 1, 3);
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        const square = new THREE.Mesh(geometry, material);
+        square.position.set(
+          x * this.squareSize - tileOffset + tileX * this.tileSize * this.squareSize,
+          0,
+          z * this.squareSize - tileOffset + tileZ * this.tileSize * this.squareSize
+        );
+        square.userData.defaultColor = color.getHex();
+        tile.add(square);
+      }
+    }
+
+    return tile;
+  }
+
+  private getColorForTerrainType(terrainType: TerrainType): number {
+    switch (terrainType) {
+      case TerrainType.Dirt: return 0x8B4513;
+      case TerrainType.Grass: return 0x228B22;
+      case TerrainType.Tree: return 0x006400;
+      case TerrainType.Building: return 0xA0522D;
+      case TerrainType.Wall: return 0x808080;
+      case TerrainType.Path: return 0xD2B48C;
+      case TerrainType.Bridge: return 0x8B4513;
+      case TerrainType.Water: return 0x4169E1;
+      default: return 0xFFFFFF;
+    }
+  }
+
+  private unloadDistantTiles(centerTileX: number, centerTileZ: number): void {
+    for (const [key, tile] of this.loadedTiles.entries()) {
+      const [tileX, tileZ] = key.split(',').map(Number);
+      if (
+        Math.abs(tileX - centerTileX) > this.visibleRange ||
+        Math.abs(tileZ - centerTileZ) > this.visibleRange
+      ) {
+        this.board.remove(tile);
+        this.loadedTiles.delete(key);
+      }
+    }
+  }
+
+  getBoard(): THREE.Group {
+    return this.board;
+  }
+
+  getSquareSize(): number {
+    return this.squareSize;
+  }
+
+  highlightSquare(square: THREE.Mesh): void {
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
+    const highlightColor = new THREE.Color(0xFFFF00);
+    for (let i = 0; i < colors.count; i++) {
+      colors.setXYZ(i, highlightColor.r, highlightColor.g, highlightColor.b);
+    }
+    colors.needsUpdate = true;
+  }
+
+  resetHighlight(square: THREE.Mesh): void {
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
+    const defaultColor = new THREE.Color(square.userData.defaultColor);
+    for (let i = 0; i < colors.count; i++) {
+      colors.setXYZ(i, defaultColor.r, defaultColor.g, defaultColor.b);
+    }
+    colors.needsUpdate = true;
+  }
+}
+</FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager.ts">
 import * as THREE from 'three';
 import { BoardManager } from './BoardManager';
@@ -612,7 +762,7 @@ export class GameEngine {
 
     this.boardManager = new BoardManager(this.scene);
     this.mapManager = new MapManager(this.boardManager);
-    this.playerManager = new PlayerManager(this.scene);
+    this.playerManager = new PlayerManager(this.scene, this.mapManager);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
     this.inputManager = new InputManager(
       this.renderer.domElement,
@@ -629,7 +779,7 @@ export class GameEngine {
   private init(): void {
     this.mapManager.generateMap(20, 20); // Generate a 20x20 map
     this.boardManager.createBoard(this.mapManager);
-    this.playerManager.createPlayer(this.mapManager);
+    this.playerManager.createPlayer();
     this.addLighting();
     this.animate();
   }
@@ -645,9 +795,9 @@ export class GameEngine {
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
-    this.playerManager.update(this.mapManager);
+    this.playerManager.update();
     const playerPosition = this.playerManager.getPlayerPosition();
-    this.boardManager.updateBoard(playerPosition, this.mapManager);
+    this.boardManager.updateBoard(playerPosition);
     this.cameraManager.updateCameraPosition(playerPosition);
     this.renderer.render(this.scene, this.cameraManager.getCamera());
   }
@@ -728,120 +878,6 @@ export class InputManager {
   private onWheel(event: WheelEvent): void {
     const zoomFactor = 0.01;
     this.cameraManager.zoom(event.deltaY * zoomFactor);
-  }
-}
-</FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
-import * as THREE from 'three';
-import { MapManager, TerrainType } from './MapManager';
-
-export class BoardManager {
-  private board: THREE.Group;
-  private tileSize: number = 8; // Size of each tile (8x8 squares)
-  private squareSize: number = 1;
-  private loadedTiles: Map<string, THREE.Group> = new Map();
-  private visibleRange: number = 3; // Number of tiles visible in each direction
-
-  constructor(private scene: THREE.Scene) {
-    this.board = new THREE.Group();
-    this.scene.add(this.board);
-  }
-
-  createBoard(mapManager: MapManager): void {
-    // Initial board creation is no longer needed
-    // Tiles will be created dynamically based on player position
-  }
-
-  updateBoard(playerPosition: THREE.Vector3, mapManager: MapManager): void {
-    const centerTileX = Math.floor(playerPosition.x / (this.tileSize * this.squareSize));
-    const centerTileZ = Math.floor(playerPosition.z / (this.tileSize * this.squareSize));
-
-    for (let x = centerTileX - this.visibleRange; x <= centerTileX + this.visibleRange; x++) {
-      for (let z = centerTileZ - this.visibleRange; z <= centerTileZ + this.visibleRange; z++) {
-        this.loadTile(x, z, mapManager);
-      }
-    }
-
-    this.unloadDistantTiles(centerTileX, centerTileZ);
-  }
-
-  private loadTile(tileX: number, tileZ: number, mapManager: MapManager): void {
-    const tileKey = `${tileX},${tileZ}`;
-    if (!this.loadedTiles.has(tileKey)) {
-      const tile = this.createTile(tileX, tileZ, mapManager);
-      this.board.add(tile);
-      this.loadedTiles.set(tileKey, tile);
-    }
-  }
-
-  private createTile(tileX: number, tileZ: number, mapManager: MapManager): THREE.Group {
-    const tile = new THREE.Group();
-    const tileOffset = this.tileSize * this.squareSize / 2 - this.squareSize / 2;
-
-    for (let x = 0; x < this.tileSize; x++) {
-      for (let z = 0; z < this.tileSize; z++) {
-        const worldX = x + tileX * this.tileSize;
-        const worldZ = z + tileZ * this.tileSize;
-        const terrainType = mapManager.getTerrainType(worldX, worldZ);
-        const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
-        const material = new THREE.MeshPhongMaterial({
-          color: this.getColorForTerrainType(terrainType)
-        });
-        const square = new THREE.Mesh(geometry, material);
-        square.position.set(
-          x * this.squareSize - tileOffset + tileX * this.tileSize * this.squareSize,
-          mapManager.getInterpolatedHeight(worldX, worldZ),
-          z * this.squareSize - tileOffset + tileZ * this.tileSize * this.squareSize
-        );
-        square.userData.defaultColor = material.color.getHex();
-        tile.add(square);
-      }
-    }
-
-    return tile;
-  }
-
-  private getColorForTerrainType(terrainType: TerrainType): number {
-    switch (terrainType) {
-      case TerrainType.Dirt: return 0x8B4513;
-      case TerrainType.Grass: return 0x228B22;
-      case TerrainType.Tree: return 0x006400;
-      case TerrainType.Building: return 0xA0522D;
-      case TerrainType.Wall: return 0x808080;
-      case TerrainType.Path: return 0xD2B48C;
-      case TerrainType.Bridge: return 0x8B4513;
-      case TerrainType.Water: return 0x4169E1;
-      default: return 0xFFFFFF;
-    }
-  }
-
-  private unloadDistantTiles(centerTileX: number, centerTileZ: number): void {
-    for (const [key, tile] of this.loadedTiles.entries()) {
-      const [tileX, tileZ] = key.split(',').map(Number);
-      if (
-        Math.abs(tileX - centerTileX) > this.visibleRange ||
-        Math.abs(tileZ - centerTileZ) > this.visibleRange
-      ) {
-        this.board.remove(tile);
-        this.loadedTiles.delete(key);
-      }
-    }
-  }
-
-  getBoard(): THREE.Group {
-    return this.board;
-  }
-
-  getSquareSize(): number {
-    return this.squareSize;
-  }
-
-  highlightSquare(square: THREE.Mesh): void {
-    (square.material as THREE.MeshPhongMaterial).color.setHex(0xFFFF00);
-  }
-
-  resetHighlight(square: THREE.Mesh): void {
-    (square.material as THREE.MeshPhongMaterial).color.setHex(square.userData.defaultColor);
   }
 }
 </FILE>
@@ -996,54 +1032,10 @@ if (container) {
   const game = new GameEngine(container);
 }
 </FILE>
-<FILE path="/home/travis/Projects/runefort/webpack.main.config.ts">
-import type { Configuration } from 'webpack';
-
-import { rules } from './webpack.rules';
-import { plugins } from './webpack.plugins';
-
-export const mainConfig: Configuration = {
-  /**
-   * This is the main entry point for your application, it's the first file
-   * that runs in the main process.
-   */
-  entry: './src/index.ts',
-  // Put your normal webpack config below here
-  module: {
-    rules,
-  },
-  plugins,
-  resolve: {
-    extensions: ['.js', '.ts', '.jsx', '.tsx', '.css', '.json'],
-  },
-};
-
-</FILE>
-<FILE path="/home/travis/Projects/runefort/webpack.renderer.config.ts">
-import type { Configuration } from 'webpack';
-
-import { rules } from './webpack.rules';
-import { plugins } from './webpack.plugins';
-
-rules.push({
-  test: /\.css$/,
-  use: [{ loader: 'style-loader' }, { loader: 'css-loader' }],
-});
-
-export const rendererConfig: Configuration = {
-  module: {
-    rules,
-  },
-  plugins,
-  resolve: {
-    extensions: ['.js', '.ts', '.jsx', '.tsx', '.css'],
-  },
-};
-
-</FILE>
 <FILE path="./src/lib/game-engine/PlayerManager.ts" TARGET>
 import * as THREE from 'three';
 import { MapManager } from './MapManager';
+import { BoardManager } from './BoardManager';
 
 export class PlayerManager {
   private player: THREE.Group;
@@ -1056,10 +1048,15 @@ export class PlayerManager {
   private walkAnimation: number = 0;
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
+  public mapManager: MapManager;
+  public boardManager: BoardManager;
 
-  constructor(private scene: THREE.Scene) {}
+  constructor(private scene: THREE.Scene, mapManager: MapManager, boardManager: BoardManager) {
+    this.mapManager = mapManager;
+    this.boardManager = boardManager;
+  }
 
-  createPlayer(mapManager: MapManager): void {
+  createPlayer(): void {
     this.player = new THREE.Group();
 
     // Body
@@ -1103,7 +1100,7 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, this.getTerrainHeight(0, 0, mapManager), 0);
+    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
     this.scene.add(this.player);
   }
 
@@ -1147,17 +1144,25 @@ export class PlayerManager {
     return this.player.position;
   }
 
-  movePlayerToSquare(square: THREE.Object3D, mapManager: MapManager): void {
-    const terrainHeight = this.getTerrainHeight(square.position.x, square.position.z, mapManager);
-    this.targetPosition = new THREE.Vector3(square.position.x, terrainHeight, square.position.z);
+  movePlayerToSquare(square: THREE.Object3D): void {
+    const tileSize = this.boardManager.getSquareSize();
+    const tileX = Math.floor(square.position.x / tileSize);
+    const tileZ = Math.floor(square.position.z / tileSize);
+    
+    // Calculate the center of the tile
+    const centerX = (tileX + 1) * tileSize;
+    const centerZ = (tileZ + 1) * tileSize;
+    
+    const terrainHeight = this.getTerrainHeight(centerX, centerZ);
+    this.targetPosition = new THREE.Vector3(centerX, terrainHeight, centerZ);
   }
 
-  private getTerrainHeight(x: number, z: number, mapManager: MapManager): number {
-    const terrainHeight = mapManager.getInterpolatedHeight(x, z);
+  private getTerrainHeight(x: number, z: number): number {
+    const terrainHeight = this.mapManager.getInterpolatedHeight(x, z);
     return terrainHeight + 0.95; // Add player's height offset
   }
 
-  update(mapManager: MapManager): void {
+  update(): void {
     if (this.targetPosition) {
       const currentPosition = this.player.position;
       const direction = this.targetPosition.clone().sub(currentPosition);
@@ -1168,7 +1173,7 @@ export class PlayerManager {
         const newPosition = currentPosition.clone().add(direction);
         
         // Update Y position based on terrain height
-        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z, mapManager);
+        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
         
         this.player.position.copy(newPosition);
         this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
@@ -1183,10 +1188,9 @@ export class PlayerManager {
 }
 </FILE>
 <REQUEST>
-Cannot read properties of undefined (reading 'getInterpolatedHeight')
-TypeError: Cannot read properties of undefined (reading 'getInterpolatedHeight')
-    at PlayerManager.getTerrainHeight (webpack-internal:///./src/lib/game-engine/PlayerManager.ts:106:42)
-    at PlayerManager.movePlayerToSquare (webpack-internal:///./src/lib/game-engine/PlayerManager.ts:102:36)
+Cannot read properties of undefined (reading 'getSquareSize')
+TypeError: Cannot read properties of undefined (reading 'getSquareSize')
+    at PlayerManager.movePlayerToSquare (webpack-internal:///./src/lib/game-engine/PlayerManager.ts:104:44)
     at InputManager.onMouseClick (webpack-internal:///./src/lib/game-engine/InputManager.ts:48:32)
     at HTMLCanvasElement.eval (webpack-internal:///./src/lib/game-engine/InputManager.ts:33:67)
 </REQUEST>

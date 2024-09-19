@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MapManager } from './MapManager';
+import { BoardManager } from './BoardManager';
 
 export class PlayerManager {
   private player: THREE.Group;
@@ -12,11 +13,12 @@ export class PlayerManager {
   private walkAnimation: number = 0;
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
-  private mapManager: MapManager;
 
-  constructor(private scene: THREE.Scene, mapManager: MapManager) {
-    this.mapManager = mapManager;
-  }
+  constructor(
+    private scene: THREE.Scene,
+    private mapManager: MapManager,
+    private boardManager: BoardManager
+  ) {}
 
   createPlayer(): void {
     this.player = new THREE.Group();
@@ -107,8 +109,16 @@ export class PlayerManager {
   }
 
   movePlayerToSquare(square: THREE.Object3D): void {
-    const terrainHeight = this.getTerrainHeight(square.position.x, square.position.z);
-    this.targetPosition = new THREE.Vector3(square.position.x, terrainHeight, square.position.z);
+    const tileSize = this.boardManager.getSquareSize();
+    const tileX = Math.floor(square.position.x / tileSize);
+    const tileZ = Math.floor(square.position.z / tileSize);
+    
+    // Calculate the center of the tile
+    const centerX = (tileX + 1) * tileSize;
+    const centerZ = (tileZ + 1) * tileSize;
+    
+    const terrainHeight = this.getTerrainHeight(centerX, centerZ);
+    this.targetPosition = new THREE.Vector3(centerX, terrainHeight, centerZ);
   }
 
   private getTerrainHeight(x: number, z: number): number {

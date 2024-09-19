@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MapManager } from './MapManager';
+import { BoardManager } from './BoardManager';
 
 export class PlayerManager {
   private player: THREE.Group;
@@ -12,10 +13,15 @@ export class PlayerManager {
   private walkAnimation: number = 0;
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
+  public mapManager: MapManager;
+  public boardManager: BoardManager;
 
-  constructor(private scene: THREE.Scene) {}
+  constructor(private scene: THREE.Scene, mapManager: MapManager, boardManager: BoardManager) {
+    this.mapManager = mapManager;
+    this.boardManager = boardManager;
+  }
 
-  createPlayer(mapManager: MapManager): void {
+  createPlayer(): void {
     this.player = new THREE.Group();
 
     // Body
@@ -59,7 +65,7 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, this.getTerrainHeight(0, 0, mapManager), 0);
+    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
     this.scene.add(this.player);
   }
 
@@ -103,17 +109,25 @@ export class PlayerManager {
     return this.player.position;
   }
 
-  movePlayerToSquare(square: THREE.Object3D, mapManager: MapManager): void {
-    const terrainHeight = this.getTerrainHeight(square.position.x, square.position.z, mapManager);
-    this.targetPosition = new THREE.Vector3(square.position.x, terrainHeight, square.position.z);
+  movePlayerToSquare(square: THREE.Object3D): void {
+    const tileSize = this.boardManager.getSquareSize();
+    const tileX = Math.floor(square.position.x / tileSize);
+    const tileZ = Math.floor(square.position.z / tileSize);
+    
+    // Calculate the center of the tile
+    const centerX = (tileX + 1) * tileSize;
+    const centerZ = (tileZ + 1) * tileSize;
+    
+    const terrainHeight = this.getTerrainHeight(centerX, centerZ);
+    this.targetPosition = new THREE.Vector3(centerX, terrainHeight, centerZ);
   }
 
-  private getTerrainHeight(x: number, z: number, mapManager: MapManager): number {
-    const terrainHeight = mapManager.getInterpolatedHeight(x, z);
+  private getTerrainHeight(x: number, z: number): number {
+    const terrainHeight = this.mapManager.getInterpolatedHeight(x, z);
     return terrainHeight + 0.95; // Add player's height offset
   }
 
-  update(mapManager: MapManager): void {
+  update(): void {
     if (this.targetPosition) {
       const currentPosition = this.player.position;
       const direction = this.targetPosition.clone().sub(currentPosition);
@@ -124,7 +138,7 @@ export class PlayerManager {
         const newPosition = currentPosition.clone().add(direction);
         
         // Update Y position based on terrain height
-        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z, mapManager);
+        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
         
         this.player.position.copy(newPosition);
         this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
