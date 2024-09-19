@@ -272,109 +272,6 @@ export function dot(a: V3, b: V3): number {
 
 You will now be given the actual INPUT you must work with.
 
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
-import * as THREE from 'three';
-
-export class BoardManager {
-  private board: THREE.Group;
-  private boardSize: number = 8;
-  private squareSize: number = 1;
-
-  constructor(private scene: THREE.Scene) {
-    this.board = new THREE.Group();
-  }
-
-  createBoard(): void {
-    const boardOffset = (this.boardSize * this.squareSize) / 2 - this.squareSize / 2;
-
-    for (let x = 0; x < this.boardSize; x++) {
-      for (let z = 0; z < this.boardSize; z++) {
-        const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
-        const material = new THREE.MeshPhongMaterial({
-          color: (x + z) % 2 === 0 ? 0xFFFFFF : 0x000000
-        });
-        const square = new THREE.Mesh(geometry, material);
-        square.position.set(
-          x * this.squareSize - boardOffset,
-          0,
-          z * this.squareSize - boardOffset
-        );
-        this.board.add(square);
-      }
-    }
-    this.scene.add(this.board);
-  }
-
-  getBoard(): THREE.Group {
-    return this.board;
-  }
-}
-</FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/InputManager.ts">
-import * as THREE from 'three';
-import { CameraManager } from './CameraManager';
-import { PlayerManager } from './PlayerManager';
-import { BoardManager } from './BoardManager';
-
-export class InputManager {
-  private raycaster: THREE.Raycaster;
-  private mouse: THREE.Vector2;
-
-  constructor(
-    private domElement: HTMLCanvasElement,
-    private cameraManager: CameraManager,
-    private playerManager: PlayerManager,
-    private boardManager: BoardManager
-  ) {
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
-
-    this.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
-    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
-    window.addEventListener('wheel', (event) => this.onWheel(event), false);
-  }
-
-  private onMouseClick(event: MouseEvent): void {
-    this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.cameraManager.getCamera());
-
-    const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
-
-    if (intersects.length > 0) {
-      const clickedSquare = intersects[0].object;
-      this.playerManager.movePlayerToSquare(clickedSquare);
-    }
-  }
-
-  private onKeyDown(event: KeyboardEvent): void {
-    switch (event.key) {
-      case 'a':
-      case 'ArrowLeft':
-        this.cameraManager.rotateCamera('left');
-        break;
-      case 'd':
-      case 'ArrowRight':
-        this.cameraManager.rotateCamera('right');
-        break;
-      case 'w':
-      case 'ArrowUp':
-        this.cameraManager.tiltCamera('up');
-        break;
-      case 's':
-      case 'ArrowDown':
-        this.cameraManager.tiltCamera('down');
-        break;
-    }
-  }
-
-  private onWheel(event: WheelEvent): void {
-    const zoomFactor = 0.01; // Reduced zoom factor for more gradual zooming
-    this.cameraManager.zoom(event.deltaY * zoomFactor);
-  }
-}
-</FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/game-engine/GameEngine.ts">
 import * as THREE from 'three';
 import { BoardManager } from './BoardManager';
@@ -435,6 +332,61 @@ export class GameEngine {
   }
 }
 </FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
+import * as THREE from 'three';
+
+export class BoardManager {
+  private board: THREE.Group;
+  private boardSize: number = 8;
+  private squareSize: number = 1;
+  private highlightedSquare: THREE.Mesh | null = null;
+
+  constructor(private scene: THREE.Scene) {
+    this.board = new THREE.Group();
+  }
+
+  createBoard(): void {
+    const boardOffset = (this.boardSize * this.squareSize) / 2 - this.squareSize / 2;
+
+    for (let x = 0; x < this.boardSize; x++) {
+      for (let z = 0; z < this.boardSize; z++) {
+        const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
+        const material = new THREE.MeshPhongMaterial({
+          color: (x + z) % 2 === 0 ? 0xFFFFFF : 0x000000
+        });
+        const square = new THREE.Mesh(geometry, material);
+        square.position.set(
+          x * this.squareSize - boardOffset,
+          0,
+          z * this.squareSize - boardOffset
+        );
+        square.userData.defaultColor = material.color.getHex();
+        this.board.add(square);
+      }
+    }
+    this.scene.add(this.board);
+  }
+
+  getBoard(): THREE.Group {
+    return this.board;
+  }
+
+  highlightSquare(square: THREE.Mesh): void {
+    if (this.highlightedSquare) {
+      (this.highlightedSquare.material as THREE.MeshPhongMaterial).color.setHex(this.highlightedSquare.userData.defaultColor);
+    }
+    (square.material as THREE.MeshPhongMaterial).color.setHex(0xFFFF00);
+    this.highlightedSquare = square;
+  }
+
+  resetHighlight(): void {
+    if (this.highlightedSquare) {
+      (this.highlightedSquare.material as THREE.MeshPhongMaterial).color.setHex(this.highlightedSquare.userData.defaultColor);
+      this.highlightedSquare = null;
+    }
+  }
+}
+</FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/game-engine/CameraManager.ts">
 import * as THREE from 'three';
 
@@ -484,6 +436,74 @@ export class CameraManager {
   zoom(delta: number): void {
     this.cameraDistance += delta;
     this.cameraDistance = Math.max(2, Math.min(30, this.cameraDistance)); // Adjusted zoom range
+  }
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/InputManager.ts">
+import * as THREE from 'three';
+import { CameraManager } from './CameraManager';
+import { PlayerManager } from './PlayerManager';
+import { BoardManager } from './BoardManager';
+
+export class InputManager {
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
+
+  constructor(
+    private domElement: HTMLCanvasElement,
+    private cameraManager: CameraManager,
+    private playerManager: PlayerManager,
+    private boardManager: BoardManager
+  ) {
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+
+    this.domElement.addEventListener('click', (event) => this.onMouseClick(event), false);
+    window.addEventListener('keydown', (event) => this.onKeyDown(event), false);
+    window.addEventListener('wheel', (event) => this.onWheel(event), false);
+  }
+
+  private onMouseClick(event: MouseEvent): void {
+    this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.cameraManager.getCamera());
+
+    const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
+
+    if (intersects.length > 0) {
+      const clickedSquare = intersects[0].object as THREE.Mesh;
+      this.boardManager.highlightSquare(clickedSquare);
+      this.playerManager.movePlayerToSquare(clickedSquare);
+    } else {
+      this.boardManager.resetHighlight();
+    }
+  }
+
+  private onKeyDown(event: KeyboardEvent): void {
+    switch (event.key) {
+      case 'a':
+      case 'ArrowLeft':
+        this.cameraManager.rotateCamera('left');
+        break;
+      case 'd':
+      case 'ArrowRight':
+        this.cameraManager.rotateCamera('right');
+        break;
+      case 'w':
+      case 'ArrowUp':
+        this.cameraManager.tiltCamera('up');
+        break;
+      case 's':
+      case 'ArrowDown':
+        this.cameraManager.tiltCamera('down');
+        break;
+    }
+  }
+
+  private onWheel(event: WheelEvent): void {
+    const zoomFactor = 0.01; // Reduced zoom factor for more gradual zooming
+    this.cameraManager.zoom(event.deltaY * zoomFactor);
   }
 }
 </FILE>
@@ -543,6 +563,8 @@ export class PlayerManager {
   private leftLeg: THREE.Mesh;
   private rightLeg: THREE.Mesh;
   private walkAnimation: number = 0;
+  private targetPosition: THREE.Vector3 | null = null;
+  private moveSpeed: number = 0.1;
 
   constructor(private scene: THREE.Scene) {}
 
@@ -584,7 +606,7 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, 0.85, 0);
+    this.player.position.set(0, 0.95, 0);
     this.scene.add(this.player);
   }
   
@@ -593,26 +615,7 @@ export class PlayerManager {
   }
 
   movePlayerToSquare(square: THREE.Object3D): void {
-    const targetPosition = new THREE.Vector3(square.position.x, 0.5, square.position.z);
-    const currentPosition = this.player.position;
-    
-    // Check if the target square is adjacent (including diagonals)
-    const dx = Math.abs(targetPosition.x - currentPosition.x);
-    const dz = Math.abs(targetPosition.z - currentPosition.z);
-    
-    if (dx <= 1 && dz <= 1 && (dx + dz > 0)) {
-      const distance = currentPosition.distanceTo(targetPosition);
-      
-      if (distance > 0.1) {
-        const direction = targetPosition.sub(currentPosition).normalize();
-        this.player.position.add(direction.multiplyScalar(0.1));
-        this.player.lookAt(targetPosition);
-        this.animateWalk();
-      } else {
-        this.player.position.copy(targetPosition);
-        this.resetPose();
-      }
-    }
+    this.targetPosition = new THREE.Vector3(square.position.x, 0.95, square.position.z);
   }
 
   private animateWalk(): void {
@@ -633,10 +636,25 @@ export class PlayerManager {
   }
 
   update(): void {
-    // This method should be called in the game loop to update player animations
+    if (this.targetPosition) {
+      const currentPosition = this.player.position;
+      const direction = this.targetPosition.clone().sub(currentPosition);
+      const distance = direction.length();
+
+      if (distance > this.moveSpeed) {
+        direction.normalize().multiplyScalar(this.moveSpeed);
+        this.player.position.add(direction);
+        this.player.lookAt(this.targetPosition);
+        this.animateWalk();
+      } else {
+        this.player.position.copy(this.targetPosition);
+        this.resetPose();
+        this.targetPosition = null;
+      }
+    }
   }
 }
 </FILE>
 <REQUEST>
-squares should be highlightable clickable. player should move to square when clicked.
+player should have a face
 </REQUEST>

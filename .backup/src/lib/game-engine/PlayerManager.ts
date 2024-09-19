@@ -9,6 +9,8 @@ export class PlayerManager {
   private leftLeg: THREE.Mesh;
   private rightLeg: THREE.Mesh;
   private walkAnimation: number = 0;
+  private targetPosition: THREE.Vector3 | null = null;
+  private moveSpeed: number = 0.1;
 
   constructor(private scene: THREE.Scene) {}
 
@@ -50,7 +52,7 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, 0.85, 0);
+    this.player.position.set(0, 0.95, 0);
     this.scene.add(this.player);
   }
   
@@ -59,26 +61,7 @@ export class PlayerManager {
   }
 
   movePlayerToSquare(square: THREE.Object3D): void {
-    const targetPosition = new THREE.Vector3(square.position.x, 0.5, square.position.z);
-    const currentPosition = this.player.position;
-    
-    // Check if the target square is adjacent (including diagonals)
-    const dx = Math.abs(targetPosition.x - currentPosition.x);
-    const dz = Math.abs(targetPosition.z - currentPosition.z);
-    
-    if (dx <= 1 && dz <= 1 && (dx + dz > 0)) {
-      const distance = currentPosition.distanceTo(targetPosition);
-      
-      if (distance > 0.1) {
-        const direction = targetPosition.sub(currentPosition).normalize();
-        this.player.position.add(direction.multiplyScalar(0.1));
-        this.player.lookAt(targetPosition);
-        this.animateWalk();
-      } else {
-        this.player.position.copy(targetPosition);
-        this.resetPose();
-      }
-    }
+    this.targetPosition = new THREE.Vector3(square.position.x, 0.95, square.position.z);
   }
 
   private animateWalk(): void {
@@ -99,6 +82,21 @@ export class PlayerManager {
   }
 
   update(): void {
-    // This method should be called in the game loop to update player animations
+    if (this.targetPosition) {
+      const currentPosition = this.player.position;
+      const direction = this.targetPosition.clone().sub(currentPosition);
+      const distance = direction.length();
+
+      if (distance > this.moveSpeed) {
+        direction.normalize().multiplyScalar(this.moveSpeed);
+        this.player.position.add(direction);
+        this.player.lookAt(this.targetPosition);
+        this.animateWalk();
+      } else {
+        this.player.position.copy(this.targetPosition);
+        this.resetPose();
+        this.targetPosition = null;
+      }
+    }
   }
 }
