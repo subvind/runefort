@@ -20,11 +20,11 @@ export class GameEngine {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
 
+    this.mapManager = new MapManager();
     this.boardManager = new BoardManager(this.scene);
     this.playerManager = new PlayerManager(this.scene);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
     this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
-    this.mapManager = new MapManager(this.boardManager);
 
     this.init();
 
@@ -32,12 +32,11 @@ export class GameEngine {
   }
 
   private init(): void {
-    this.boardManager.createBoard();
     this.mapManager.generateMap(20, 20); // Generate a 20x20 map
-    this.playerManager.createPlayer();
+    this.boardManager.createBoard(this.mapManager);
+    this.playerManager.createPlayer(this.mapManager);
     this.addLighting();
     this.animate();
-    this.mapManager.applyMapToBoard(); // Apply the map to the board in each frame
   }
 
   private addLighting(): void {
@@ -51,9 +50,9 @@ export class GameEngine {
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
-    this.playerManager.update();
+    this.playerManager.update(this.mapManager);
     const playerPosition = this.playerManager.getPlayerPosition();
-    this.boardManager.updateBoard(playerPosition);
+    this.boardManager.updateBoard(playerPosition, this.mapManager);
     this.cameraManager.updateCameraPosition(playerPosition);
     this.renderer.render(this.scene, this.cameraManager.getCamera());
   }

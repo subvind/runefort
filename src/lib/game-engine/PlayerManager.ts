@@ -12,8 +12,11 @@ export class PlayerManager {
   private walkAnimation: number = 0;
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
+  private mapManager: MapManager;
 
-  constructor(private scene: THREE.Scene, private mapManager: MapManager) {}
+  constructor(private scene: THREE.Scene, mapManager: MapManager) {
+    this.mapManager = mapManager;
+  }
 
   createPlayer(): void {
     this.player = new THREE.Group();

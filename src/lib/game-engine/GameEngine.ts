@@ -24,7 +24,12 @@ export class GameEngine {
     this.mapManager = new MapManager(this.boardManager);
     this.playerManager = new PlayerManager(this.scene, this.mapManager);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
-    this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
+    this.inputManager = new InputManager(
+      this.renderer.domElement,
+      this.cameraManager,
+      this.playerManager,
+      this.boardManager
+    );
 
     this.init();
 
@@ -32,12 +37,11 @@ export class GameEngine {
   }
 
   private init(): void {
-    this.boardManager.createBoard();
     this.mapManager.generateMap(20, 20); // Generate a 20x20 map
+    this.boardManager.createBoard(this.mapManager);
     this.playerManager.createPlayer();
     this.addLighting();
     this.animate();
-    this.mapManager.applyMapToBoard(); // Apply the map to the board in each frame
   }
 
   private addLighting(): void {

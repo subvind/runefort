@@ -37,6 +37,12 @@ export class MapManager {
     this.smoothTerrain();
   }
 
+  getTerrainType(x: number, z: number): TerrainType {
+    const key = `${Math.floor(x)},${Math.floor(z)}`;
+    const terrainData = this.terrainMap.get(key);
+    return terrainData ? terrainData.type : TerrainType.Grass; // Default to grass if not found
+  }
+
   private waveFormCollapse(): void {
     const grid: WFCCell[][] = [];
     for (let y = 0; y < this.mapHeight; y++) {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MapManager, TerrainType } from './MapManager';
 
 export class BoardManager {
   private board: THREE.Group;
@@ -6,15 +7,15 @@ export class BoardManager {
   private squareSize: number = 1;
   private loadedTiles: Map<string, THREE.Group> = new Map();
   private visibleRange: number = 3; // Number of tiles visible in each direction
+  private mapManager: MapManager;
 
   constructor(private scene: THREE.Scene) {
     this.board = new THREE.Group();
     this.scene.add(this.board);
   }
 
-  createBoard(): void {
-    // Initial board creation is no longer needed
-    // Tiles will be created dynamically based on player position
+  createBoard(mapManager: MapManager): void {
+    this.mapManager = mapManager;
   }
 
   updateBoard(playerPosition: THREE.Vector3): void {
@@ -45,14 +46,17 @@ export class BoardManager {
 
     for (let x = 0; x < this.tileSize; x++) {
       for (let z = 0; z < this.tileSize; z++) {
+        const worldX = x + tileX * this.tileSize;
+        const worldZ = z + tileZ * this.tileSize;
+        const terrainType = this.mapManager.getTerrainType(worldX, worldZ);
         const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
         const material = new THREE.MeshPhongMaterial({
-          color: (x + z) % 2 === 0 ? 0xFFFFFF : 0x000000
+          color: this.getColorForTerrainType(terrainType)
         });
         const square = new THREE.Mesh(geometry, material);
         square.position.set(
           x * this.squareSize - tileOffset + tileX * this.tileSize * this.squareSize,
-          0,
+          this.mapManager.getInterpolatedHeight(worldX, worldZ),
           z * this.squareSize - tileOffset + tileZ * this.tileSize * this.squareSize
         );
         square.userData.defaultColor = material.color.getHex();
@@ -61,6 +65,20 @@ export class BoardManager {
     }
 
     return tile;
+  }
+
+  private getColorForTerrainType(terrainType: TerrainType): number {
+    switch (terrainType) {
+      case TerrainType.Dirt: return 0x8B4513;
+      case TerrainType.Grass: return 0x228B22;
+      case TerrainType.Tree: return 0x006400;
+      case TerrainType.Building: return 0xA0522D;
+      case TerrainType.Wall: return 0x808080;
+      case TerrainType.Path: return 0xD2B48C;
+      case TerrainType.Bridge: return 0x8B4513;
+      case TerrainType.Water: return 0x4169E1;
+      default: return 0xFFFFFF;
+    }
   }
 
   private unloadDistantTiles(centerTileX: number, centerTileZ: number): void {

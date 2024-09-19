@@ -124,22 +124,38 @@ export class MapManager {
   }
 
   private getValidOptions(currentOptions: TerrainType[], direction: [number, number]): TerrainType[] {
-    // This is a simplified constraint system. You can expand this to create more complex rules.
+    const [dx, dy] = direction;
     const allOptions = Object.values(TerrainType).filter(v => typeof v === 'number') as TerrainType[];
     
-    if (currentOptions.includes(TerrainType.Water)) {
-      return [TerrainType.Dirt];
+    const rules: { [key in TerrainType]: TerrainType[] } = {
+      [TerrainType.Water]: [TerrainType.Water, TerrainType.Bridge, TerrainType.Dirt],
+      [TerrainType.Dirt]: [TerrainType.Dirt, TerrainType.Grass, TerrainType.Path, TerrainType.Water],
+      [TerrainType.Grass]: [TerrainType.Grass, TerrainType.Tree, TerrainType.Dirt, TerrainType.Path, TerrainType.Building],
+      [TerrainType.Tree]: [TerrainType.Tree, TerrainType.Grass],
+      [TerrainType.Building]: [TerrainType.Building, TerrainType.Path, TerrainType.Grass],
+      [TerrainType.Wall]: [TerrainType.Wall, TerrainType.Path, TerrainType.Grass],
+      [TerrainType.Path]: [TerrainType.Path, TerrainType.Dirt, TerrainType.Grass, TerrainType.Building, TerrainType.Wall],
+      [TerrainType.Bridge]: [TerrainType.Bridge, TerrainType.Water, TerrainType.Path]
+    };
+
+    let validOptions: TerrainType[] = [];
+
+    for (const option of currentOptions) {
+      validOptions = [...validOptions, ...rules[option]];
     }
-    if (currentOptions.includes(TerrainType.Dirt)) {
-      return [TerrainType.Grass, TerrainType.Water];
+
+    // Additional rules based on direction
+    if (Math.abs(dx) + Math.abs(dy) === 1) { // Orthogonal neighbors
+      if (currentOptions.includes(TerrainType.Water)) {
+        validOptions = validOptions.filter(o => o !== TerrainType.Building && o !== TerrainType.Wall);
+      }
+      if (currentOptions.includes(TerrainType.Building) || currentOptions.includes(TerrainType.Wall)) {
+        validOptions = validOptions.filter(o => o !== TerrainType.Water);
+      }
     }
-    if (currentOptions.includes(TerrainType.Grass)) {
-      return [TerrainType.Tree];
-    }
-    if (currentOptions.includes(TerrainType.Tree)) {
-      return [TerrainType.Dirt, TerrainType.Grass];
-    }
-    return allOptions;
+
+    // Ensure uniqueness
+    return [...new Set(validOptions)];
   }
 
   applyMapToBoard(): void {
