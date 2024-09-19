@@ -8,7 +8,7 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "publish": "env-cmd -f .env electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
   },
   "devDependencies": {
@@ -20,6 +20,8 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.4.0",
     "@electron-forge/plugin-fuses": "^7.4.0",
     "@electron-forge/plugin-webpack": "^7.4.0",
+    "@electron-forge/publisher-github": "^7.4.0",
+    "@electron-forge/maker-dmg": "^7.4.0",
     "@electron/fuses": "^1.8.0",
     "@types/three": "^0.168.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -41,6 +43,7 @@
     "name": "Travis Burandt",
     "email": "travis.burandt@gmail.com"
   },
+  "license": "UNLICENSED",
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
     "three": "^0.168.0"
