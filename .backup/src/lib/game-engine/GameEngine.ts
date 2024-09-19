@@ -46,6 +46,7 @@ export class GameEngine {
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
+    this.playerManager.update();
     this.cameraManager.updateCameraPosition(this.playerManager.getPlayerPosition());
     this.renderer.render(this.scene, this.cameraManager.getCamera());
   }

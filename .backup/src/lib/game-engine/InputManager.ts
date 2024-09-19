@@ -30,8 +30,11 @@ export class InputManager {
     const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
 
     if (intersects.length > 0) {
-      const clickedSquare = intersects[0].object;
+      const clickedSquare = intersects[0].object as THREE.Mesh;
+      this.boardManager.highlightSquare(clickedSquare);
       this.playerManager.movePlayerToSquare(clickedSquare);
+    } else {
+      this.boardManager.resetHighlight();
     }
   }
 

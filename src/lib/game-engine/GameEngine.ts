@@ -47,7 +47,9 @@ export class GameEngine {
   private animate(): void {
     requestAnimationFrame(() => this.animate());
     this.playerManager.update();
-    this.cameraManager.updateCameraPosition(this.playerManager.getPlayerPosition());
+    const playerPosition = this.playerManager.getPlayerPosition();
+    this.boardManager.updateBoard(playerPosition);
+    this.cameraManager.updateCameraPosition(playerPosition);
     this.renderer.render(this.scene, this.cameraManager.getCamera());
   }
 

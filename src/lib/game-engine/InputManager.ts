@@ -6,6 +6,7 @@ import { BoardManager } from './BoardManager';
 export class InputManager {
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
+  private lastClickedSquare: THREE.Mesh | null = null;
 
   constructor(
     private domElement: HTMLCanvasElement,
@@ -27,14 +28,18 @@ export class InputManager {
 
     this.raycaster.setFromCamera(this.mouse, this.cameraManager.getCamera());
 
-    const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children);
+    const intersects = this.raycaster.intersectObjects(this.boardManager.getBoard().children, true);
 
     if (intersects.length > 0) {
       const clickedSquare = intersects[0].object as THREE.Mesh;
+      
+      if (this.lastClickedSquare) {
+        this.boardManager.resetHighlight(this.lastClickedSquare);
+      }
+      
       this.boardManager.highlightSquare(clickedSquare);
       this.playerManager.movePlayerToSquare(clickedSquare);
-    } else {
-      this.boardManager.resetHighlight();
+      this.lastClickedSquare = clickedSquare;
     }
   }
 
@@ -60,7 +65,7 @@ export class InputManager {
   }
 
   private onWheel(event: WheelEvent): void {
-    const zoomFactor = 0.01; // Reduced zoom factor for more gradual zooming
+    const zoomFactor = 0.01;
     this.cameraManager.zoom(event.deltaY * zoomFactor);
   }
 }
