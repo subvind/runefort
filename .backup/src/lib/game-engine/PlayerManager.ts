@@ -13,13 +13,12 @@ export class PlayerManager {
   private walkAnimation: number = 0;
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
-  public mapManager: MapManager;
-  public boardManager: BoardManager;
 
-  constructor(private scene: THREE.Scene, mapManager: MapManager, boardManager: BoardManager) {
-    this.mapManager = mapManager;
-    this.boardManager = boardManager;
-  }
+  constructor(
+    private scene: THREE.Scene,
+    private mapManager: MapManager,
+    private boardManager: BoardManager
+  ) {}
 
   createPlayer(): void {
     this.player = new THREE.Group();
@@ -65,7 +64,10 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
+    const initialPosition = new THREE.Vector3(0, 0, 0);
+    const terrainHeight = this.getTerrainHeight(initialPosition.x, initialPosition.z);
+    initialPosition.y = terrainHeight;
+    this.player.position.copy(initialPosition);
     this.scene.add(this.player);
   }
 
@@ -129,21 +131,24 @@ export class PlayerManager {
 
   update(): void {
     if (this.targetPosition) {
-      const currentPosition = this.player.position;
+      const currentPosition = this.player.position.clone();
       const direction = this.targetPosition.clone().sub(currentPosition);
       const distance = direction.length();
 
       if (distance > this.moveSpeed) {
         direction.normalize().multiplyScalar(this.moveSpeed);
-        const newPosition = currentPosition.clone().add(direction);
+        const newPosition = currentPosition.add(direction);
         
         // Update Y position based on terrain height
-        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
+        const terrainHeight = this.getTerrainHeight(newPosition.x, newPosition.z);
+        newPosition.y = terrainHeight;
         
         this.player.position.copy(newPosition);
         this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
         this.animateWalk();
       } else {
+        const finalTerrainHeight = this.getTerrainHeight(this.targetPosition.x, this.targetPosition.z);
+        this.targetPosition.y = finalTerrainHeight;
         this.player.position.copy(this.targetPosition);
         this.resetPose();
         this.targetPosition = null;

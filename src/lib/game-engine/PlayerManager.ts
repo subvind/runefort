@@ -64,7 +64,10 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
+    const initialPosition = new THREE.Vector3(0, 0, 0);
+    const terrainHeight = this.getTerrainHeight(initialPosition.x, initialPosition.z);
+    initialPosition.y = terrainHeight;
+    this.player.position.copy(initialPosition);
     this.scene.add(this.player);
   }
 
@@ -114,30 +117,31 @@ export class PlayerManager {
     const tileZ = Math.floor(square.position.z / tileSize);
     
     // Calculate the center of the tile
-    const centerX = (tileX + 1) * tileSize;
-    const centerZ = (tileZ + 1) * tileSize;
+    const centerX = (tileX + tileSize) * tileSize;
+    const centerZ = (tileZ + tileSize) * tileSize;
     
     const terrainHeight = this.getTerrainHeight(centerX, centerZ);
     this.targetPosition = new THREE.Vector3(centerX, terrainHeight, centerZ);
   }
 
   private getTerrainHeight(x: number, z: number): number {
-    const terrainHeight = this.mapManager.getInterpolatedHeight(x, z);
+    const terrainHeight = this.mapManager.getInterpolatedHeight(x + 4, z + 4);
     return terrainHeight + 0.95; // Add player's height offset
   }
 
   update(): void {
     if (this.targetPosition) {
-      const currentPosition = this.player.position;
+      const currentPosition = this.player.position.clone();
       const direction = this.targetPosition.clone().sub(currentPosition);
       const distance = direction.length();
 
       if (distance > this.moveSpeed) {
         direction.normalize().multiplyScalar(this.moveSpeed);
-        const newPosition = currentPosition.clone().add(direction);
+        const newPosition = currentPosition.add(direction);
         
         // Update Y position based on terrain height
-        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
+        const terrainHeight = this.getTerrainHeight(newPosition.x, newPosition.z);
+        newPosition.y = terrainHeight;
         
         this.player.position.copy(newPosition);
         this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
