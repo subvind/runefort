@@ -2,20 +2,25 @@ import * as THREE from 'three';
 import { BoardManager } from './BoardManager';
 
 export enum TerrainType {
-  Ground,
-  Mountain,
+  Dirt,
+  Grass,
   Tree,
   Building,
   Wall,
   Path,
   Bridge,
-  River
+  Water
 }
 
 interface TerrainData {
   type: TerrainType;
   height: number;
   color: number;
+}
+
+interface WFCCell {
+  collapsed: boolean;
+  options: TerrainType[];
 }
 
 export class MapManager {
@@ -28,13 +33,113 @@ export class MapManager {
   generateMap(width: number, height: number): void {
     this.mapWidth = width;
     this.mapHeight = height;
-    for (let x = 0; x < width; x++) {
-      for (let y = 0; y < height; y++) {
-        const terrainType = this.getRandomTerrainType();
+    this.waveFormCollapse();
+    this.smoothTerrain();
+  }
+
+  private waveFormCollapse(): void {
+    const grid: WFCCell[][] = [];
+    for (let y = 0; y < this.mapHeight; y++) {
+      grid[y] = [];
+      for (let x = 0; x < this.mapWidth; x++) {
+        grid[y][x] = {
+          collapsed: false,
+          options: Object.values(TerrainType).filter(v => typeof v === 'number') as TerrainType[]
+        };
+      }
+    }
+
+    while (this.hasUncollapsedCells(grid)) {
+      const { x, y } = this.findLowestEntropyCell(grid);
+      this.collapseCell(grid, x, y);
+      this.propagate(grid, x, y);
+    }
+
+    for (let y = 0; y < this.mapHeight; y++) {
+      for (let x = 0; x < this.mapWidth; x++) {
+        const terrainType = grid[y][x].options[0];
         this.terrainMap.set(`${x},${y}`, this.createTerrainData(terrainType));
       }
     }
-    this.smoothTerrain();
+  }
+
+  private hasUncollapsedCells(grid: WFCCell[][]): boolean {
+    return grid.some(row => row.some(cell => !cell.collapsed));
+  }
+
+  private findLowestEntropyCell(grid: WFCCell[][]): { x: number, y: number } {
+    let minEntropy = Infinity;
+    let candidates: { x: number, y: number }[] = [];
+
+    for (let y = 0; y < this.mapHeight; y++) {
+      for (let x = 0; x < this.mapWidth; x++) {
+        if (!grid[y][x].collapsed) {
+          const entropy = grid[y][x].options.length;
+          if (entropy < minEntropy) {
+            minEntropy = entropy;
+            candidates = [{ x, y }];
+          } else if (entropy === minEntropy) {
+            candidates.push({ x, y });
+          }
+        }
+      }
+    }
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  private collapseCell(grid: WFCCell[][], x: number, y: number): void {
+    const cell = grid[y][x];
+    cell.collapsed = true;
+    const chosenOption = cell.options[Math.floor(Math.random() * cell.options.length)];
+    cell.options = [chosenOption];
+  }
+
+  private propagate(grid: WFCCell[][], x: number, y: number): void {
+    const queue: [number, number][] = [[x, y]];
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    while (queue.length > 0) {
+      const [cx, cy] = queue.shift()!;
+      const currentOptions = grid[cy][cx].options;
+
+      for (const [dx, dy] of directions) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+
+        if (nx >= 0 && nx < this.mapWidth && ny >= 0 && ny < this.mapHeight) {
+          const neighbor = grid[ny][nx];
+          if (!neighbor.collapsed) {
+            const validOptions = this.getValidOptions(currentOptions, [dx, dy]);
+            const newOptions = neighbor.options.filter(option => validOptions.includes(option));
+
+            if (newOptions.length < neighbor.options.length) {
+              neighbor.options = newOptions;
+              queue.push([nx, ny]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private getValidOptions(currentOptions: TerrainType[], direction: [number, number]): TerrainType[] {
+    // This is a simplified constraint system. You can expand this to create more complex rules.
+    const allOptions = Object.values(TerrainType).filter(v => typeof v === 'number') as TerrainType[];
+    
+    if (currentOptions.includes(TerrainType.Water)) {
+      return [TerrainType.Dirt];
+    }
+    if (currentOptions.includes(TerrainType.Dirt)) {
+      return [TerrainType.Grass, TerrainType.Water];
+    }
+    if (currentOptions.includes(TerrainType.Grass)) {
+      return [TerrainType.Tree];
+    }
+    if (currentOptions.includes(TerrainType.Tree)) {
+      return [TerrainType.Dirt, TerrainType.Grass];
+    }
+    return allOptions;
   }
 
   applyMapToBoard(): void {
@@ -60,9 +165,9 @@ export class MapManager {
 
   private createTerrainData(type: TerrainType): TerrainData {
     switch (type) {
-      case TerrainType.Ground:
+      case TerrainType.Dirt:
         return { type, height: Math.random() * 0.5, color: 0x8B4513 };
-      case TerrainType.Mountain:
+      case TerrainType.Grass:
         return { type, height: 1.5 + Math.random() * 0.5, color: 0x808080 };
       case TerrainType.Tree:
         return { type, height: 0.5 + Math.random() * 0.5, color: 0x228B22 };
@@ -74,7 +179,7 @@ export class MapManager {
         return { type, height: 0.1, color: 0xD2B48C };
       case TerrainType.Bridge:
         return { type, height: 0.3 + Math.random() * 0.2, color: 0x8B4513 };
-      case TerrainType.River:
+      case TerrainType.Water:
         return { type, height: -0.3 - Math.random() * 0.2, color: 0x4169E1 };
     }
   }
