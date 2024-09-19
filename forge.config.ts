@@ -3,12 +3,10 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
-import { MakerDMG } from '@electron-forge/maker-dmg';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { PublisherGithub } from '@electron-forge/publisher-github';
 
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
@@ -19,16 +17,11 @@ const config: ForgeConfig = {
     executableName: 'runefort'
   },
   rebuildConfig: {},
-  makers: [new MakerDMG({}), new MakerSquirrel({}), new MakerZIP({}, ['darwin']), new MakerRpm({}), new MakerDeb({})],
-  publishers: [
-    new PublisherGithub({
-      repository: {
-        owner: 'subvind',
-        name: 'runefort'
-      },
-      prerelease: false,
-      draft: true
-    })
+  makers: [
+    new MakerSquirrel({}),
+    new MakerZIP({}, ['darwin']),
+    new MakerRpm({}),
+    new MakerDeb({})
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
@@ -58,6 +51,19 @@ const config: ForgeConfig = {
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),
   ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'subvind',
+          name: 'runefort'
+        },
+        prerelease: false,
+        draft: true
+      }
+    }
+  ]
 };
 
 export default config;
