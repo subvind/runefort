@@ -80,6 +80,10 @@ export class BoardManager {
     return this.board;
   }
 
+  getSquareSize(): number {
+    return this.squareSize;
+  }
+
   highlightSquare(square: THREE.Mesh): void {
     (square.material as THREE.MeshPhongMaterial).color.setHex(0xFFFF00);
   }

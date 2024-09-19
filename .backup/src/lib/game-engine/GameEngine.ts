@@ -3,6 +3,7 @@ import { BoardManager } from './BoardManager';
 import { PlayerManager } from './PlayerManager';
 import { CameraManager } from './CameraManager';
 import { InputManager } from './InputManager';
+import { MapManager } from './MapManager';
 
 export class GameEngine {
   private scene: THREE.Scene;
@@ -11,6 +12,7 @@ export class GameEngine {
   private playerManager: PlayerManager;
   private cameraManager: CameraManager;
   private inputManager: InputManager;
+  private mapManager: MapManager;
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -22,6 +24,7 @@ export class GameEngine {
     this.playerManager = new PlayerManager(this.scene);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
     this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
+    this.mapManager = new MapManager(this.boardManager);
 
     this.init();
 
@@ -30,6 +33,8 @@ export class GameEngine {
 
   private init(): void {
     this.boardManager.createBoard();
+    this.mapManager.generateMap(20, 20); // Generate a 20x20 map
+    this.mapManager.applyMapToBoard();
     this.playerManager.createPlayer();
     this.addLighting();
     this.animate();
@@ -47,7 +52,9 @@ export class GameEngine {
   private animate(): void {
     requestAnimationFrame(() => this.animate());
     this.playerManager.update();
-    this.cameraManager.updateCameraPosition(this.playerManager.getPlayerPosition());
+    const playerPosition = this.playerManager.getPlayerPosition();
+    this.boardManager.updateBoard(playerPosition);
+    this.cameraManager.updateCameraPosition(playerPosition);
     this.renderer.render(this.scene, this.cameraManager.getCamera());
   }
 
