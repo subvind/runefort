@@ -435,6 +435,67 @@ export class GameEngine {
   }
 }
 </FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/renderer.ts">
+import { GameEngine } from './game-engine/GameEngine';
+
+const container = document.getElementById('game-container');
+if (container) {
+  console.log('found container')
+  const game = new GameEngine(container);
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/CameraManager.ts">
+import * as THREE from 'three';
+
+export class CameraManager {
+  private camera: THREE.PerspectiveCamera;
+  private cameraDistance: number = 10;
+  private cameraRotation: number = 0;
+  private cameraTilt: number = Math.PI / 4; // Initial tilt angle
+
+  constructor(aspect: number) {
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+  }
+
+  updateCameraPosition(playerPosition: THREE.Vector3): void {
+    const cameraOffset = new THREE.Vector3(
+      Math.sin(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraTilt) * this.cameraDistance,
+      Math.cos(this.cameraRotation) * Math.sin(this.cameraTilt) * this.cameraDistance
+    );
+    this.camera.position.copy(playerPosition).add(cameraOffset);
+    this.camera.lookAt(playerPosition);
+  }
+
+  updateAspect(aspect: number): void {
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+  }
+
+  getCamera(): THREE.PerspectiveCamera {
+    return this.camera;
+  }
+
+  rotateCamera(direction: 'left' | 'right'): void {
+    const rotationSpeed = 0.1;
+    this.cameraRotation += direction === 'left' ? rotationSpeed : -rotationSpeed;
+  }
+
+  tiltCamera(direction: 'up' | 'down'): void {
+    const tiltSpeed = 0.05;
+    if (direction === 'up') {
+      this.cameraTilt = Math.max(0.1, this.cameraTilt - tiltSpeed);
+    } else {
+      this.cameraTilt = Math.min(Math.PI / 2, this.cameraTilt + tiltSpeed);
+    }
+  }
+
+  zoom(delta: number): void {
+    this.cameraDistance += delta;
+    this.cameraDistance = Math.max(2, Math.min(30, this.cameraDistance)); // Adjusted zoom range
+  }
+}
+</FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/game-engine/InputManager.ts">
 import * as THREE from 'three';
 import { CameraManager } from './CameraManager';
@@ -508,13 +569,145 @@ export class InputManager {
   }
 }
 </FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/renderer.ts">
-import { GameEngine } from './game-engine/GameEngine';
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/PlayerManager.ts">
+import * as THREE from 'three';
+import { MapManager } from './MapManager';
 
-const container = document.getElementById('game-container');
-if (container) {
-  console.log('found container')
-  const game = new GameEngine(container);
+export class PlayerManager {
+  private player: THREE.Group;
+  private body: THREE.Mesh;
+  private head: THREE.Group;
+  private leftArm: THREE.Mesh;
+  private rightArm: THREE.Mesh;
+  private leftLeg: THREE.Mesh;
+  private rightLeg: THREE.Mesh;
+  private walkAnimation: number = 0;
+  private targetPosition: THREE.Vector3 | null = null;
+  private moveSpeed: number = 0.1;
+
+  constructor(private scene: THREE.Scene, private mapManager: MapManager) {}
+
+  createPlayer(): void {
+    this.player = new THREE.Group();
+
+    // Body
+    const bodyGeometry = new THREE.BoxGeometry(0.5, 0.75, 0.25);
+    const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x00FF00 });
+    this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    this.player.add(this.body);
+
+    // Head
+    this.head = new THREE.Group();
+    const headGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const headMaterial = new THREE.MeshPhongMaterial({ color: 0xFFCC99 });
+    const headMesh = new THREE.Mesh(headGeometry, headMaterial);
+    this.head.add(headMesh);
+
+    // Face
+    this.addFace();
+
+    this.head.position.set(0, 0.625, 0);
+    this.player.add(this.head);
+
+    // Arms
+    const armGeometry = new THREE.BoxGeometry(0.125, 0.5, 0.125);
+    const armMaterial = new THREE.MeshPhongMaterial({ color: 0x00FF00 });
+    this.leftArm = new THREE.Mesh(armGeometry, armMaterial);
+    this.leftArm.position.set(0.3125, 0.125, 0);
+    this.player.add(this.leftArm);
+
+    this.rightArm = new THREE.Mesh(armGeometry, armMaterial);
+    this.rightArm.position.set(-0.3125, 0.125, 0);
+    this.player.add(this.rightArm);
+
+    // Legs
+    const legGeometry = new THREE.BoxGeometry(0.125, 0.5, 0.125);
+    const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF });
+    this.leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+    this.leftLeg.position.set(0.125, -0.625, 0);
+    this.player.add(this.leftLeg);
+
+    this.rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+    this.rightLeg.position.set(-0.125, -0.625, 0);
+    this.player.add(this.rightLeg);
+
+    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
+    this.scene.add(this.player);
+  }
+
+  private addFace(): void {
+    const eyeGeometry = new THREE.SphereGeometry(0.05, 32, 32);
+    const eyeMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+    
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(0.1, 0.1, 0.25);
+    this.head.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(-0.1, 0.1, 0.25);
+    this.head.add(rightEye);
+
+    const mouthGeometry = new THREE.BoxGeometry(0.2, 0.05, 0.05);
+    const mouthMaterial = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+    mouth.position.set(0, -0.1, 0.25);
+    this.head.add(mouth);
+  }
+
+  private animateWalk(): void {
+    this.walkAnimation += 0.2;
+    const swingAngle = Math.sin(this.walkAnimation) * 0.5;
+
+    this.leftArm.rotation.x = -swingAngle;
+    this.rightArm.rotation.x = swingAngle;
+    this.leftLeg.rotation.x = swingAngle;
+    this.rightLeg.rotation.x = -swingAngle;
+  }
+
+  private resetPose(): void {
+    this.leftArm.rotation.x = 0;
+    this.rightArm.rotation.x = 0;
+    this.leftLeg.rotation.x = 0;
+    this.rightLeg.rotation.x = 0;
+  }
+
+  getPlayerPosition(): THREE.Vector3 {
+    return this.player.position;
+  }
+
+  movePlayerToSquare(square: THREE.Object3D): void {
+    const terrainHeight = this.getTerrainHeight(square.position.x, square.position.z);
+    this.targetPosition = new THREE.Vector3(square.position.x, terrainHeight, square.position.z);
+  }
+
+  private getTerrainHeight(x: number, z: number): number {
+    const terrainHeight = this.mapManager.getInterpolatedHeight(x, z);
+    return terrainHeight + 0.95; // Add player's height offset
+  }
+
+  update(): void {
+    if (this.targetPosition) {
+      const currentPosition = this.player.position;
+      const direction = this.targetPosition.clone().sub(currentPosition);
+      const distance = direction.length();
+
+      if (distance > this.moveSpeed) {
+        direction.normalize().multiplyScalar(this.moveSpeed);
+        const newPosition = currentPosition.clone().add(direction);
+        
+        // Update Y position based on terrain height
+        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
+        
+        this.player.position.copy(newPosition);
+        this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
+        this.animateWalk();
+      } else {
+        this.player.position.copy(this.targetPosition);
+        this.resetPose();
+        this.targetPosition = null;
+      }
+    }
+  }
 }
 </FILE>
 <FILE path="/home/travis/Projects/runefort/src/index.ts">
@@ -577,20 +770,25 @@ import * as THREE from 'three';
 import { BoardManager } from './BoardManager';
 
 export enum TerrainType {
-  Ground,
-  Mountain,
+  Dirt,
+  Grass,
   Tree,
   Building,
   Wall,
   Path,
   Bridge,
-  River
+  Water
 }
 
 interface TerrainData {
   type: TerrainType;
   height: number;
   color: number;
+}
+
+interface WFCCell {
+  collapsed: boolean;
+  options: TerrainType[];
 }
 
 export class MapManager {
@@ -603,13 +801,113 @@ export class MapManager {
   generateMap(width: number, height: number): void {
     this.mapWidth = width;
     this.mapHeight = height;
-    for (let x = 0; x < width; x++) {
-      for (let y = 0; y < height; y++) {
-        const terrainType = this.getRandomTerrainType();
+    this.waveFormCollapse();
+    this.smoothTerrain();
+  }
+
+  private waveFormCollapse(): void {
+    const grid: WFCCell[][] = [];
+    for (let y = 0; y < this.mapHeight; y++) {
+      grid[y] = [];
+      for (let x = 0; x < this.mapWidth; x++) {
+        grid[y][x] = {
+          collapsed: false,
+          options: Object.values(TerrainType).filter(v => typeof v === 'number') as TerrainType[]
+        };
+      }
+    }
+
+    while (this.hasUncollapsedCells(grid)) {
+      const { x, y } = this.findLowestEntropyCell(grid);
+      this.collapseCell(grid, x, y);
+      this.propagate(grid, x, y);
+    }
+
+    for (let y = 0; y < this.mapHeight; y++) {
+      for (let x = 0; x < this.mapWidth; x++) {
+        const terrainType = grid[y][x].options[0];
         this.terrainMap.set(`${x},${y}`, this.createTerrainData(terrainType));
       }
     }
-    this.smoothTerrain();
+  }
+
+  private hasUncollapsedCells(grid: WFCCell[][]): boolean {
+    return grid.some(row => row.some(cell => !cell.collapsed));
+  }
+
+  private findLowestEntropyCell(grid: WFCCell[][]): { x: number, y: number } {
+    let minEntropy = Infinity;
+    let candidates: { x: number, y: number }[] = [];
+
+    for (let y = 0; y < this.mapHeight; y++) {
+      for (let x = 0; x < this.mapWidth; x++) {
+        if (!grid[y][x].collapsed) {
+          const entropy = grid[y][x].options.length;
+          if (entropy < minEntropy) {
+            minEntropy = entropy;
+            candidates = [{ x, y }];
+          } else if (entropy === minEntropy) {
+            candidates.push({ x, y });
+          }
+        }
+      }
+    }
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  private collapseCell(grid: WFCCell[][], x: number, y: number): void {
+    const cell = grid[y][x];
+    cell.collapsed = true;
+    const chosenOption = cell.options[Math.floor(Math.random() * cell.options.length)];
+    cell.options = [chosenOption];
+  }
+
+  private propagate(grid: WFCCell[][], x: number, y: number): void {
+    const queue: [number, number][] = [[x, y]];
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    while (queue.length > 0) {
+      const [cx, cy] = queue.shift()!;
+      const currentOptions = grid[cy][cx].options;
+
+      for (const [dx, dy] of directions) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+
+        if (nx >= 0 && nx < this.mapWidth && ny >= 0 && ny < this.mapHeight) {
+          const neighbor = grid[ny][nx];
+          if (!neighbor.collapsed) {
+            const validOptions = this.getValidOptions(currentOptions, [dx, dy]);
+            const newOptions = neighbor.options.filter(option => validOptions.includes(option));
+
+            if (newOptions.length < neighbor.options.length) {
+              neighbor.options = newOptions;
+              queue.push([nx, ny]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private getValidOptions(currentOptions: TerrainType[], direction: [number, number]): TerrainType[] {
+    // This is a simplified constraint system. You can expand this to create more complex rules.
+    const allOptions = Object.values(TerrainType).filter(v => typeof v === 'number') as TerrainType[];
+    
+    if (currentOptions.includes(TerrainType.Water)) {
+      return [TerrainType.Dirt];
+    }
+    if (currentOptions.includes(TerrainType.Dirt)) {
+      return [TerrainType.Grass, TerrainType.Water];
+    }
+    if (currentOptions.includes(TerrainType.Grass)) {
+      return [TerrainType.Tree];
+    }
+    if (currentOptions.includes(TerrainType.Tree)) {
+      return [TerrainType.Dirt, TerrainType.Grass];
+    }
+    return allOptions;
   }
 
   applyMapToBoard(): void {
@@ -635,9 +933,9 @@ export class MapManager {
 
   private createTerrainData(type: TerrainType): TerrainData {
     switch (type) {
-      case TerrainType.Ground:
+      case TerrainType.Dirt:
         return { type, height: Math.random() * 0.5, color: 0x8B4513 };
-      case TerrainType.Mountain:
+      case TerrainType.Grass:
         return { type, height: 1.5 + Math.random() * 0.5, color: 0x808080 };
       case TerrainType.Tree:
         return { type, height: 0.5 + Math.random() * 0.5, color: 0x228B22 };
@@ -649,7 +947,7 @@ export class MapManager {
         return { type, height: 0.1, color: 0xD2B48C };
       case TerrainType.Bridge:
         return { type, height: 0.3 + Math.random() * 0.2, color: 0x8B4513 };
-      case TerrainType.River:
+      case TerrainType.Water:
         return { type, height: -0.3 - Math.random() * 0.2, color: 0x4169E1 };
     }
   }
@@ -761,5 +1059,5 @@ export class MapManager {
 }
 </FILE>
 <REQUEST>
-implement wave collapse function for terrain generation
+implement wave collapse function for terrain generation. Expand on getValidOptions to create more complex rules.
 </REQUEST>
