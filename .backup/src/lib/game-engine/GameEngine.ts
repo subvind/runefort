@@ -34,10 +34,10 @@ export class GameEngine {
   private init(): void {
     this.boardManager.createBoard();
     this.mapManager.generateMap(20, 20); // Generate a 20x20 map
-    this.mapManager.applyMapToBoard();
     this.playerManager.createPlayer();
     this.addLighting();
     this.animate();
+    this.mapManager.applyMapToBoard(); // Apply the map to the board in each frame
   }
 
   private addLighting(): void {

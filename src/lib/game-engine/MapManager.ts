@@ -112,29 +112,22 @@ export class MapManager {
     const material = square.material as THREE.MeshPhongMaterial;
     material.color.setHex(terrainData.color);
 
-    // Create a custom geometry for the square to allow for height differences
-    const geometry = new THREE.BufferGeometry();
     const squareSize = this.boardManager.getSquareSize();
-    const vertices = [];
-    const indices = [];
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const positions = positionAttribute.array as Float32Array;
 
-    for (let i = 0; i <= 1; i++) {
-      for (let j = 0; j <= 1; j++) {
-        const x = i * squareSize;
-        const z = j * squareSize;
-        const height = this.getInterpolatedHeight(tileX + i, tileZ + j);
-        vertices.push(x, height, z);
-      }
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const z = positions[i + 2];
+      const localX = x / squareSize;
+      const localZ = z / squareSize;
+      const height = this.getInterpolatedHeight(tileX + localX, tileZ + localZ);
+      positions[i + 1] = height;
     }
 
-    indices.push(0, 1, 2, 2, 1, 3);
-
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
+    positionAttribute.needsUpdate = true;
     geometry.computeVertexNormals();
-
-    square.geometry.dispose();
-    square.geometry = geometry;
 
     if (terrainData.type === TerrainType.Tree) {
       this.addTreeModel(square, terrainData.height);
@@ -143,9 +136,24 @@ export class MapManager {
     }
   }
 
-  private getInterpolatedHeight(x: number, z: number): number {
-    const terrainData = this.terrainMap.get(`${Math.floor(x)},${Math.floor(z)}`);
-    return terrainData ? terrainData.height * this.boardManager.getSquareSize() : 0;
+  public getInterpolatedHeight(x: number, z: number): number {
+    const x0 = Math.floor(x);
+    const z0 = Math.floor(z);
+    const x1 = x0 + 1;
+    const z1 = z0 + 1;
+
+    const h00 = this.terrainMap.get(`${x0},${z0}`)?.height ?? 0;
+    const h10 = this.terrainMap.get(`${x1},${z0}`)?.height ?? 0;
+    const h01 = this.terrainMap.get(`${x0},${z1}`)?.height ?? 0;
+    const h11 = this.terrainMap.get(`${x1},${z1}`)?.height ?? 0;
+
+    const fx = x - x0;
+    const fz = z - z0;
+
+    const h0 = h00 * (1 - fx) + h10 * fx;
+    const h1 = h01 * (1 - fx) + h11 * fx;
+
+    return (h0 * (1 - fz) + h1 * fz) * this.boardManager.getSquareSize();
   }
 
   private addTreeModel(square: THREE.Mesh, baseHeight: number): void {

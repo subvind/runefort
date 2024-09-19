@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MapManager } from './MapManager';
 
 export class PlayerManager {
   private player: THREE.Group;
@@ -12,7 +13,7 @@ export class PlayerManager {
   private targetPosition: THREE.Vector3 | null = null;
   private moveSpeed: number = 0.1;
 
-  constructor(private scene: THREE.Scene) {}
+  constructor(private scene: THREE.Scene, private mapManager: MapManager) {}
 
   createPlayer(): void {
     this.player = new THREE.Group();
@@ -58,7 +59,7 @@ export class PlayerManager {
     this.rightLeg.position.set(-0.125, -0.625, 0);
     this.player.add(this.rightLeg);
 
-    this.player.position.set(0, 0.95, 0);
+    this.player.position.set(0, this.getTerrainHeight(0, 0), 0);
     this.scene.add(this.player);
   }
 
@@ -80,14 +81,6 @@ export class PlayerManager {
     mouth.position.set(0, -0.1, 0.25);
     this.head.add(mouth);
   }
-  
-  getPlayerPosition(): THREE.Vector3 {
-    return this.player.position;
-  }
-
-  movePlayerToSquare(square: THREE.Object3D): void {
-    this.targetPosition = new THREE.Vector3(square.position.x, 0.95, square.position.z);
-  }
 
   private animateWalk(): void {
     this.walkAnimation += 0.2;
@@ -106,6 +99,20 @@ export class PlayerManager {
     this.rightLeg.rotation.x = 0;
   }
 
+  getPlayerPosition(): THREE.Vector3 {
+    return this.player.position;
+  }
+
+  movePlayerToSquare(square: THREE.Object3D): void {
+    const terrainHeight = this.getTerrainHeight(square.position.x, square.position.z);
+    this.targetPosition = new THREE.Vector3(square.position.x, terrainHeight, square.position.z);
+  }
+
+  private getTerrainHeight(x: number, z: number): number {
+    const terrainHeight = this.mapManager.getInterpolatedHeight(x, z);
+    return terrainHeight + 0.95; // Add player's height offset
+  }
+
   update(): void {
     if (this.targetPosition) {
       const currentPosition = this.player.position;
@@ -114,8 +121,13 @@ export class PlayerManager {
 
       if (distance > this.moveSpeed) {
         direction.normalize().multiplyScalar(this.moveSpeed);
-        this.player.position.add(direction);
-        this.player.lookAt(this.targetPosition);
+        const newPosition = currentPosition.clone().add(direction);
+        
+        // Update Y position based on terrain height
+        newPosition.y = this.getTerrainHeight(newPosition.x, newPosition.z);
+        
+        this.player.position.copy(newPosition);
+        this.player.lookAt(new THREE.Vector3(this.targetPosition.x, this.player.position.y, this.targetPosition.z));
         this.animateWalk();
       } else {
         this.player.position.copy(this.targetPosition);

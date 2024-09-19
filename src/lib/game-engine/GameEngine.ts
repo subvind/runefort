@@ -21,10 +21,10 @@ export class GameEngine {
     container.appendChild(this.renderer.domElement);
 
     this.boardManager = new BoardManager(this.scene);
-    this.playerManager = new PlayerManager(this.scene);
+    this.mapManager = new MapManager(this.boardManager);
+    this.playerManager = new PlayerManager(this.scene, this.mapManager);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
     this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
-    this.mapManager = new MapManager(this.boardManager);
 
     this.init();
 

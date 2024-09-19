@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export class PlayerManager {
   private player: THREE.Group;
   private body: THREE.Mesh;
-  private head: THREE.Mesh;
+  private head: THREE.Group;
   private leftArm: THREE.Mesh;
   private rightArm: THREE.Mesh;
   private leftLeg: THREE.Mesh;
@@ -24,9 +24,15 @@ export class PlayerManager {
     this.player.add(this.body);
 
     // Head
+    this.head = new THREE.Group();
     const headGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const headMaterial = new THREE.MeshPhongMaterial({ color: 0xFFCC99 });
-    this.head = new THREE.Mesh(headGeometry, headMaterial);
+    const headMesh = new THREE.Mesh(headGeometry, headMaterial);
+    this.head.add(headMesh);
+
+    // Face
+    this.addFace();
+
     this.head.position.set(0, 0.625, 0);
     this.player.add(this.head);
 
@@ -54,6 +60,25 @@ export class PlayerManager {
 
     this.player.position.set(0, 0.95, 0);
     this.scene.add(this.player);
+  }
+
+  private addFace(): void {
+    const eyeGeometry = new THREE.SphereGeometry(0.05, 32, 32);
+    const eyeMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+    
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(0.1, 0.1, 0.25);
+    this.head.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(-0.1, 0.1, 0.25);
+    this.head.add(rightEye);
+
+    const mouthGeometry = new THREE.BoxGeometry(0.2, 0.05, 0.05);
+    const mouthMaterial = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+    mouth.position.set(0, -0.1, 0.25);
+    this.head.add(mouth);
   }
   
   getPlayerPosition(): THREE.Vector3 {
