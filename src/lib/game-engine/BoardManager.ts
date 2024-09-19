@@ -4,6 +4,7 @@ export class BoardManager {
   private board: THREE.Group;
   private boardSize: number = 8;
   private squareSize: number = 1;
+  private highlightedSquare: THREE.Mesh | null = null;
 
   constructor(private scene: THREE.Scene) {
     this.board = new THREE.Group();
@@ -24,6 +25,7 @@ export class BoardManager {
           0,
           z * this.squareSize - boardOffset
         );
+        square.userData.defaultColor = material.color.getHex();
         this.board.add(square);
       }
     }
@@ -32,5 +34,20 @@ export class BoardManager {
 
   getBoard(): THREE.Group {
     return this.board;
+  }
+
+  highlightSquare(square: THREE.Mesh): void {
+    if (this.highlightedSquare) {
+      (this.highlightedSquare.material as THREE.MeshPhongMaterial).color.setHex(this.highlightedSquare.userData.defaultColor);
+    }
+    (square.material as THREE.MeshPhongMaterial).color.setHex(0xFFFF00);
+    this.highlightedSquare = square;
+  }
+
+  resetHighlight(): void {
+    if (this.highlightedSquare) {
+      (this.highlightedSquare.material as THREE.MeshPhongMaterial).color.setHex(this.highlightedSquare.userData.defaultColor);
+      this.highlightedSquare = null;
+    }
   }
 }

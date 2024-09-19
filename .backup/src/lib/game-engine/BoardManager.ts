@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 
 export class BoardManager {
-  private scene: THREE.Scene;
   private board: THREE.Group;
   private boardSize: number = 8;
   private squareSize: number = 1;
 
-  constructor(scene: THREE.Scene) {
-    this.scene = scene;
+  constructor(private scene: THREE.Scene) {
     this.board = new THREE.Group();
   }
 

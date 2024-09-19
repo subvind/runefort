@@ -6,7 +6,6 @@ import { InputManager } from './InputManager';
 
 export class GameEngine {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private boardManager: BoardManager;
   private playerManager: PlayerManager;
@@ -15,15 +14,14 @@ export class GameEngine {
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
 
     this.boardManager = new BoardManager(this.scene);
     this.playerManager = new PlayerManager(this.scene);
-    this.cameraManager = new CameraManager(this.camera, this.playerManager.getPlayer());
-    this.inputManager = new InputManager(this.renderer.domElement, this.camera, this.boardManager, this.playerManager, this.cameraManager);
+    this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
+    this.inputManager = new InputManager(this.renderer.domElement, this.cameraManager, this.playerManager, this.boardManager);
 
     this.init();
 
@@ -34,7 +32,6 @@ export class GameEngine {
     this.boardManager.createBoard();
     this.playerManager.createPlayer();
     this.addLighting();
-    this.cameraManager.updateCameraPosition();
     this.animate();
   }
 
@@ -49,13 +46,12 @@ export class GameEngine {
 
   private animate(): void {
     requestAnimationFrame(() => this.animate());
-    this.cameraManager.updateCameraPosition();
-    this.renderer.render(this.scene, this.camera);
+    this.cameraManager.updateCameraPosition(this.playerManager.getPlayerPosition());
+    this.renderer.render(this.scene, this.cameraManager.getCamera());
   }
 
   private onWindowResize(container: HTMLElement): void {
-    this.camera.aspect = container.clientWidth / container.clientHeight;
-    this.camera.updateProjectionMatrix();
+    this.cameraManager.updateAspect(container.clientWidth / container.clientHeight);
     this.renderer.setSize(container.clientWidth, container.clientHeight);
   }
 }

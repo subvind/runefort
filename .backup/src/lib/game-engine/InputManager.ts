@@ -57,6 +57,7 @@ export class InputManager {
   }
 
   private onWheel(event: WheelEvent): void {
-    this.cameraManager.zoom(event.deltaY);
+    const zoomFactor = 0.01; // Reduced zoom factor for more gradual zooming
+    this.cameraManager.zoom(event.deltaY * zoomFactor);
   }
 }
