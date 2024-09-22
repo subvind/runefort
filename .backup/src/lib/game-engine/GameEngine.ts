@@ -22,7 +22,7 @@ export class GameEngine {
 
     this.boardManager = new BoardManager(this.scene);
     this.mapManager = new MapManager(this.boardManager);
-    this.playerManager = new PlayerManager(this.scene, this.mapManager);
+    this.playerManager = new PlayerManager(this.scene, this.mapManager, this.boardManager);
     this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
     this.inputManager = new InputManager(
       this.renderer.domElement,

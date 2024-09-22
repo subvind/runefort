@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { MapManager, TerrainType } from './MapManager';
+import { MapManager } from './MapManager';
+import { TerrainType } from './MapManager/TerrainType';
 
 export class BoardManager {
   private board: THREE.Group;
