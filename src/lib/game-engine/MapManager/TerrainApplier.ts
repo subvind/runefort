@@ -6,20 +6,22 @@ import { TerrainGenerator } from './TerrainGenerator';
 export class TerrainApplier {
   constructor(private boardManager: BoardManager, private terrainMap: Map<string, TerrainData>) {}
 
-  apply(): void {
-    const board = this.boardManager.getBoard();
-    board.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        const position = object.position;
-        const tileX = Math.floor(position.x / this.boardManager.getSquareSize());
-        const tileZ = Math.floor(position.z / this.boardManager.getSquareSize());
-        const terrainData = this.terrainMap.get(`${tileX},${tileZ}`);
+  apply(centerX: number, centerZ: number, terrainMap: Map<string, TerrainData>): void {
+    const tileSize = this.boardManager.getTileSize();
+    const visibleRange = this.boardManager.getVisibleRange();
+    const chunkSize = (visibleRange * 2 + 1) * tileSize;
 
+    // Apply terrain data to the board in chunks
+    for (let x = centerX - chunkSize; x <= centerX + chunkSize; x += tileSize) {
+      for (let z = centerZ - chunkSize; z <= centerZ + chunkSize; z += tileSize) {
+        const key = `${Math.floor(x)},${Math.floor(z)}`;
+        const terrainData = terrainMap.get(key);
         if (terrainData) {
-          this.applyTerrainToSquare(object, terrainData, tileX, tileZ);
+          // Apply terrain data to the board
+          // (Implementation depends on your BoardManager's methods)
         }
       }
-    });
+    }
   }
 
   private applyTerrainToSquare(square: THREE.Mesh, terrainData: TerrainData, tileX: number, tileZ: number): void {

@@ -23,20 +23,6 @@ export class WaveFormCollapse {
     return this.createTerrainMap();
   }
 
-  generateChunk(width: number, height: number): Map<string, TerrainData> {
-    this.width = width;
-    this.height = height;
-    this.grid = this.initializeGrid();
-
-    while (this.hasUncollapsedCells()) {
-      const { x, y } = this.findLowestEntropyCell();
-      this.collapseCell(x, y);
-      this.propagate(x, y);
-    }
-
-    return this.createTerrainMap();
-  }
-
   private initializeGrid(): WFCCell[][] {
     const grid: WFCCell[][] = [];
     for (let y = 0; y < this.height; y++) {
@@ -155,5 +141,9 @@ export class WaveFormCollapse {
       }
     }
     return terrainMap;
+  }
+  
+  generateChunk(width: number, height: number): Map<string, TerrainData> {
+    // Implement chunk-based WFC algorithm here
   }
 }

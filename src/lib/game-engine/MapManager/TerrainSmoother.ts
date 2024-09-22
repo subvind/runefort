@@ -31,4 +31,53 @@ export class TerrainSmoother {
     }
     return neighbors;
   }
+  
+  smoothChunk(chunk: Map<string, TerrainData>): Map<string, TerrainData> {
+    const smoothedChunk = new Map<string, TerrainData>();
+    const chunkSize = Math.sqrt(chunk.size);
+    const padding = 1; // Add padding to consider neighboring chunks
+
+    for (let x = -padding; x < chunkSize + padding; x++) {
+      for (let y = -padding; y < chunkSize + padding; y++) {
+        const key = `${x},${y}`;
+        const currentTerrain = chunk.get(key);
+        
+        if (currentTerrain) {
+          const neighbors = this.getChunkNeighbors(x, y, chunk, chunkSize);
+          const avgHeight = this.calculateAverageHeight(currentTerrain, neighbors);
+          smoothedChunk.set(key, { ...currentTerrain, height: avgHeight });
+        }
+      }
+    }
+
+    // Remove padding cells
+    for (let x = -padding; x < chunkSize + padding; x++) {
+      for (let y = -padding; y < chunkSize + padding; y++) {
+        if (x < 0 || x >= chunkSize || y < 0 || y >= chunkSize) {
+          smoothedChunk.delete(`${x},${y}`);
+        }
+      }
+    }
+
+    return smoothedChunk;
+  }
+
+  private getChunkNeighbors(x: number, y: number, chunk: Map<string, TerrainData>, chunkSize: number): TerrainData[] {
+    const neighbors: TerrainData[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        const neighbor = chunk.get(`${nx},${ny}`);
+        if (neighbor) neighbors.push(neighbor);
+      }
+    }
+    return neighbors;
+  }
+
+  private calculateAverageHeight(current: TerrainData, neighbors: TerrainData[]): number {
+    const totalHeight = neighbors.reduce((sum, neighbor) => sum + neighbor.height, current.height);
+    return totalHeight / (neighbors.length + 1);
+  }
 }

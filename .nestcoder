@@ -272,7 +272,7 @@ export function dot(a: V3, b: V3): number {
 
 You will now be given the actual INPUT you must work with.
 
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/TerrainTypes.ts">
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainType.ts">
 export enum TerrainType {
   Dirt,
   Grass,
@@ -290,8 +290,8 @@ export interface TerrainData {
   color: number;
 }
 </FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/TerrainGenerator.ts">
-import { TerrainType, TerrainData } from './TerrainTypes';
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainGenerator.ts">
+import { TerrainType, TerrainData } from './TerrainType';
 
 export class TerrainGenerator {
   static createTerrainData(type: TerrainType): TerrainData {
@@ -336,77 +336,18 @@ export class TerrainGenerator {
   }
 }
 </FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager.ts">
-import * as THREE from 'three';
-import { BoardManager } from './BoardManager';
-import { TerrainType, TerrainData } from './TerrainTypes';
-import { WaveFormCollapse } from './WaveFormCollapse';
-import { TerrainGenerator } from './TerrainGenerator';
-import { TerrainSmoother } from './TerrainSmoother';
-import { TerrainApplier } from './TerrainApplier';
-
-export class MapManager {
-  private terrainMap: Map<string, TerrainData> = new Map();
-  private mapWidth: number = 0;
-  private mapHeight: number = 0;
-
-  constructor(private boardManager: BoardManager) {}
-
-  generateMap(width: number, height: number): void {
-    this.mapWidth = width;
-    this.mapHeight = height;
-    const wfc = new WaveFormCollapse(width, height);
-    this.terrainMap = wfc.generate();
-    const smoother = new TerrainSmoother(this.terrainMap, width, height);
-    this.terrainMap = smoother.smoothTerrain();
-  }
-
-  getTerrainType(x: number, z: number): TerrainType {
-    const key = `${Math.floor(x)},${Math.floor(z)}`;
-    const terrainData = this.terrainMap.get(key);
-    return terrainData ? terrainData.type : TerrainType.Grass; // Default to grass if not found
-  }
-
-  applyMapToBoard(): void {
-    const applier = new TerrainApplier(this.boardManager, this.terrainMap);
-    applier.apply();
-  }
-
-  public getInterpolatedHeight(x: number, z: number): number {
-    return TerrainGenerator.getInterpolatedHeight(x, z, this.terrainMap, this.boardManager.getSquareSize());
-  }
-}
-</FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainType.ts">
-export enum TerrainType {
-  Dirt,
-  Grass,
-  Tree,
-  Building,
-  Wall,
-  Path,
-  Bridge,
-  Water
-}
-
-export interface TerrainData {
-  type: TerrainType;
-  height: number;
-  color: number;
-}
-</FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/TerrainSmoother.ts">
-import { TerrainData } from './TerrainTypes';
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainSmoother.ts">
+import { TerrainData } from './TerrainType';
 
 export class TerrainSmoother {
-  constructor(private terrainMap: Map<string, TerrainData>, private width: number, private height: number) {}
+  constructor(private mapWidth: number, private mapHeight: number) {}
 
-  smoothTerrain(): Map<string, TerrainData> {
+  smoothTerrain(terrainMap: Map<string, TerrainData>): Map<string, TerrainData> {
     const smoothedMap = new Map<string, TerrainData>();
-    for (let x = 0; x < this.width; x++) {
-      for (let y = 0; y < this.height; y++) {
-        const currentTerrain = this.terrainMap.get(`${x},${y}`)!;
-        const neighbors = this.getNeighbors(x, y);
+    for (let x = 0; x < this.mapWidth; x++) {
+      for (let y = 0; y < this.mapHeight; y++) {
+        const currentTerrain = terrainMap.get(`${x},${y}`)!;
+        const neighbors = this.getNeighbors(x, y, terrainMap);
         const avgHeight = neighbors.reduce((sum, neighbor) => sum + neighbor.height, currentTerrain.height) / (neighbors.length + 1);
         smoothedMap.set(`${x},${y}`, { ...currentTerrain, height: avgHeight });
       }
@@ -414,97 +355,154 @@ export class TerrainSmoother {
     return smoothedMap;
   }
 
-  private getNeighbors(x: number, y: number): TerrainData[] {
+  private getNeighbors(x: number, y: number, terrainMap: Map<string, TerrainData>): TerrainData[] {
     const neighbors: TerrainData[] = [];
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
         if (dx === 0 && dy === 0) continue;
         const nx = x + dx;
         const ny = y + dy;
-        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-          const neighbor = this.terrainMap.get(`${nx},${ny}`);
+        if (nx >= 0 && nx < this.mapWidth && ny >= 0 && ny < this.mapHeight) {
+          const neighbor = terrainMap.get(`${nx},${ny}`);
           if (neighbor) neighbors.push(neighbor);
         }
       }
     }
     return neighbors;
   }
+  
+  smoothChunk(chunk: Map<string, TerrainData>): Map<string, TerrainData> {
+    const smoothedChunk = new Map<string, TerrainData>();
+    const chunkSize = Math.sqrt(chunk.size);
+    const padding = 1; // Add padding to consider neighboring chunks
+
+    for (let x = -padding; x < chunkSize + padding; x++) {
+      for (let y = -padding; y < chunkSize + padding; y++) {
+        const key = `${x},${y}`;
+        const currentTerrain = chunk.get(key);
+        
+        if (currentTerrain) {
+          const neighbors = this.getChunkNeighbors(x, y, chunk, chunkSize);
+          const avgHeight = this.calculateAverageHeight(currentTerrain, neighbors);
+          smoothedChunk.set(key, { ...currentTerrain, height: avgHeight });
+        }
+      }
+    }
+
+    // Remove padding cells
+    for (let x = -padding; x < chunkSize + padding; x++) {
+      for (let y = -padding; y < chunkSize + padding; y++) {
+        if (x < 0 || x >= chunkSize || y < 0 || y >= chunkSize) {
+          smoothedChunk.delete(`${x},${y}`);
+        }
+      }
+    }
+
+    return smoothedChunk;
+  }
+
+  private getChunkNeighbors(x: number, y: number, chunk: Map<string, TerrainData>, chunkSize: number): TerrainData[] {
+    const neighbors: TerrainData[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        const neighbor = chunk.get(`${nx},${ny}`);
+        if (neighbor) neighbors.push(neighbor);
+      }
+    }
+    return neighbors;
+  }
+
+  private calculateAverageHeight(current: TerrainData, neighbors: TerrainData[]): number {
+    const totalHeight = neighbors.reduce((sum, neighbor) => sum + neighbor.height, current.height);
+    return totalHeight / (neighbors.length + 1);
+  }
 }
 </FILE>
-<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/GameEngine.ts">
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager.ts">
 import * as THREE from 'three';
 import { BoardManager } from './BoardManager';
-import { PlayerManager } from './PlayerManager';
-import { CameraManager } from './CameraManager';
-import { InputManager } from './InputManager';
-import { MapManager } from './MapManager';
+import { TerrainType, TerrainData } from './MapManager/TerrainType';
+import { WaveFormCollapse } from './MapManager/WaveFormCollapse';
+import { TerrainGenerator } from './MapManager/TerrainGenerator';
+import { TerrainSmoother } from './MapManager/TerrainSmoother';
+import { TerrainApplier } from './MapManager/TerrainApplier';
 
-export class GameEngine {
-  private scene: THREE.Scene;
-  private renderer: THREE.WebGLRenderer;
-  private boardManager: BoardManager;
-  private playerManager: PlayerManager;
-  private cameraManager: CameraManager;
-  private inputManager: InputManager;
-  private mapManager: MapManager;
+export class MapManager {
+  private terrainMap: Map<string, TerrainData> = new Map();
+  private wfc: WaveFormCollapse;
+  private smoother: TerrainSmoother;
+  private applier: TerrainApplier;
 
-  constructor(container: HTMLElement) {
-    this.scene = new THREE.Scene();
-    this.renderer = new THREE.WebGLRenderer();
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(this.renderer.domElement);
-
-    this.boardManager = new BoardManager(this.scene);
-    this.mapManager = new MapManager(this.boardManager);
-    this.playerManager = new PlayerManager(this.scene, this.mapManager, this.boardManager);
-    this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
-    this.inputManager = new InputManager(
-      this.renderer.domElement,
-      this.cameraManager,
-      this.playerManager,
-      this.boardManager
-    );
-
-    this.init();
-
-    window.addEventListener('resize', () => this.onWindowResize(container), false);
+  constructor(private boardManager: BoardManager) {
+    const tileSize = this.boardManager.getTileSize();
+    const visibleRange = this.boardManager.getVisibleRange();
+    const chunkSize = (visibleRange * 2 + 1) * tileSize;
+    
+    this.wfc = new WaveFormCollapse(chunkSize, chunkSize);
+    this.smoother = new TerrainSmoother(chunkSize, chunkSize);
+    this.applier = new TerrainApplier(this.boardManager);
   }
 
-  private init(): void {
-    this.mapManager.generateMap(20, 20); // Generate a 20x20 map
-    this.boardManager.createBoard(this.mapManager);
-    this.playerManager.createPlayer();
-    this.addLighting();
-    this.animate();
+  updateTerrain(centerX: number, centerZ: number): void {
+    const tileSize = this.boardManager.getTileSize();
+    const visibleRange = this.boardManager.getVisibleRange();
+    const chunkSize = (visibleRange * 2 + 1) * tileSize;
+    const halfSize = (visibleRange + 1) * tileSize;
+
+    for (let x = centerX - halfSize; x <= centerX + halfSize; x += chunkSize) {
+      for (let z = centerZ - halfSize; z <= centerZ + halfSize; z += chunkSize) {
+        this.generateTerrainChunk(x, z, chunkSize);
+      }
+    }
+
+    this.cleanupDistantTerrain(centerX, centerZ, halfSize + chunkSize);
   }
 
-  private addLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0x404040);
-    this.scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(1, 1, 1);
-    this.scene.add(directionalLight);
+  private generateTerrainChunk(x: number, z: number, size: number): void {
+    const chunkKey = `${Math.floor(x / size)},${Math.floor(z / size)}`;
+    if (!this.terrainMap.has(chunkKey)) {
+      const newChunk = this.wfc.generateChunk(size, size);
+      const smoothedChunk = this.smoother.smoothChunk(newChunk);
+      for (const [key, value] of smoothedChunk) {
+        const [localX, localZ] = key.split(',').map(Number);
+        const globalX = x + localX;
+        const globalZ = z + localZ;
+        this.terrainMap.set(`${globalX},${globalZ}`, value);
+      }
+    }
   }
 
-  private animate(): void {
-    requestAnimationFrame(() => this.animate());
-    this.playerManager.update();
-    const playerPosition = this.playerManager.getPlayerPosition();
-    this.boardManager.updateBoard(playerPosition);
-    this.cameraManager.updateCameraPosition(playerPosition);
-    this.renderer.render(this.scene, this.cameraManager.getCamera());
+  private cleanupDistantTerrain(centerX: number, centerZ: number, maxDistance: number): void {
+    for (const [key, _] of this.terrainMap) {
+      const [x, z] = key.split(',').map(Number);
+      if (Math.abs(x - centerX) > maxDistance || Math.abs(z - centerZ) > maxDistance) {
+        this.terrainMap.delete(key);
+      }
+    }
   }
 
-  private onWindowResize(container: HTMLElement): void {
-    this.cameraManager.updateAspect(container.clientWidth / container.clientHeight);
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
+  getTerrainType(x: number, z: number): TerrainType {
+    const key = `${Math.floor(x)},${Math.floor(z)}`;
+    const terrainData = this.terrainMap.get(key);
+    return terrainData ? terrainData.type : TerrainType.Grass;
+  }
+
+  applyMapToBoard(centerX: number, centerZ: number): void {
+    this.applier.apply(centerX, centerZ, this.terrainMap);
+  }
+
+  getInterpolatedHeight(x: number, z: number): number {
+    return TerrainGenerator.getInterpolatedHeight(x, z, this.terrainMap, this.boardManager.getSquareSize());
   }
 }
 </FILE>
 <FILE path="/home/travis/Projects/runefort/src/lib/game-engine/BoardManager.ts">
 import * as THREE from 'three';
-import { MapManager, TerrainType } from './MapManager';
+import { MapManager } from './MapManager';
+import { TerrainType } from './MapManager/TerrainType';
 
 export class BoardManager {
   private board: THREE.Group;
@@ -631,6 +629,13 @@ export class BoardManager {
     return this.squareSize;
   }
 
+  getVisibleRange() {
+    return this.visibleRange;
+  }
+  getTileSize() {
+    return this.tileSize;
+  }
+
   highlightSquare(square: THREE.Mesh): void {
     const geometry = square.geometry as THREE.BufferGeometry;
     const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
@@ -652,8 +657,230 @@ export class BoardManager {
   }
 }
 </FILE>
-<FILE path="./src/lib/game-engine/WaveFormCollapse.ts" TARGET>
-import { TerrainType, TerrainData } from './TerrainTypes';
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/GameEngine.ts">
+import * as THREE from 'three';
+import { BoardManager } from './BoardManager';
+import { PlayerManager } from './PlayerManager';
+import { CameraManager } from './CameraManager';
+import { InputManager } from './InputManager';
+import { MapManager } from './MapManager';
+
+export class GameEngine {
+  private scene: THREE.Scene;
+  private renderer: THREE.WebGLRenderer;
+  private boardManager: BoardManager;
+  private playerManager: PlayerManager;
+  private cameraManager: CameraManager;
+  private inputManager: InputManager;
+  private mapManager: MapManager;
+
+  constructor(container: HTMLElement) {
+    this.scene = new THREE.Scene();
+    this.renderer = new THREE.WebGLRenderer();
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(this.renderer.domElement);
+
+    this.boardManager = new BoardManager(this.scene);
+    this.mapManager = new MapManager(this.boardManager);
+    this.playerManager = new PlayerManager(this.scene, this.mapManager, this.boardManager);
+    this.cameraManager = new CameraManager(container.clientWidth / container.clientHeight);
+    this.inputManager = new InputManager(
+      this.renderer.domElement,
+      this.cameraManager,
+      this.playerManager,
+      this.boardManager
+    );
+
+    this.init();
+
+    window.addEventListener('resize', () => this.onWindowResize(container), false);
+  }
+
+  private init(): void {
+    this.mapManager.generateMap(20, 20); // Generate a 20x20 map
+    this.boardManager.createBoard(this.mapManager);
+    this.playerManager.createPlayer();
+    this.addLighting();
+    this.animate();
+  }
+
+  private addLighting(): void {
+    const ambientLight = new THREE.AmbientLight(0x404040);
+    this.scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(1, 1, 1);
+    this.scene.add(directionalLight);
+  }
+
+  private animate(): void {
+    requestAnimationFrame(() => this.animate());
+    this.playerManager.update();
+    const playerPosition = this.playerManager.getPlayerPosition();
+    this.mapManager.updateTerrain(playerPosition.x, playerPosition.z);
+    this.mapManager.applyMapToBoard(playerPosition.x, playerPosition.z);
+    this.boardManager.updateBoard(playerPosition);
+    this.cameraManager.updateCameraPosition(playerPosition);
+    this.renderer.render(this.scene, this.cameraManager.getCamera());
+  }  
+
+  private onWindowResize(container: HTMLElement): void {
+    this.cameraManager.updateAspect(container.clientWidth / container.clientHeight);
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+  }
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainApplier.ts">
+import * as THREE from 'three';
+import { BoardManager } from '../BoardManager';
+import { TerrainData, TerrainType } from './TerrainType';
+import { TerrainGenerator } from './TerrainGenerator';
+
+export class TerrainApplier {
+  constructor(private boardManager: BoardManager) {}
+
+  apply(centerX: number, centerZ: number, terrainMap: Map<string, TerrainData>): void {
+    const tileSize = this.boardManager.getTileSize();
+    const visibleRange = this.boardManager.getVisibleRange();
+    const chunkSize = (visibleRange * 2 + 1) * tileSize;
+
+    // Apply terrain data to the board in chunks
+    for (let x = centerX - chunkSize; x <= centerX + chunkSize; x += tileSize) {
+      for (let z = centerZ - chunkSize; z <= centerZ + chunkSize; z += tileSize) {
+        const key = `${Math.floor(x)},${Math.floor(z)}`;
+        const terrainData = terrainMap.get(key);
+        if (terrainData) {
+          // Apply terrain data to the board
+          // (Implementation depends on your BoardManager's methods)
+        }
+      }
+    }
+  }
+
+  private applyTerrainToSquare(square: THREE.Mesh, terrainData: TerrainData, tileX: number, tileZ: number): void {
+    const material = square.material as THREE.MeshPhongMaterial;
+    material.color.setHex(terrainData.color);
+
+    const squareSize = this.boardManager.getSquareSize();
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const positions = positionAttribute.array as Float32Array;
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const z = positions[i + 2];
+      const localX = x / squareSize;
+      const localZ = z / squareSize;
+      const height = TerrainGenerator.getInterpolatedHeight(tileX + localX, tileZ + localZ, this.terrainMap, squareSize);
+      positions[i + 1] = height;
+    }
+
+    positionAttribute.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    if (terrainData.type === TerrainType.Tree) {
+      this.addTreeModel(square, terrainData.height);
+    } else if (terrainData.type === TerrainType.Building) {
+      this.addBuildingModel(square, terrainData.height);
+    }
+  }
+
+  private addTreeModel(square: THREE.Mesh, baseHeight: number): void {
+    // Implementation remains the same as in the original MapManager
+  }
+
+  private addBuildingModel(square: THREE.Mesh, baseHeight: number): void {
+    // Implementation remains the same as in the original MapManager
+  }
+}
+</FILE>
+<FILE path="/home/travis/Projects/runefort/src/lib/game-engine/MapManager/TerrainRenderer.ts">
+import * as THREE from 'three';
+import { TerrainType, TerrainData } from './TerrainType';
+import { BoardManager } from '../BoardManager';
+
+export class TerrainRenderer {
+  constructor(private boardManager: BoardManager) {}
+
+  applyTerrainToSquare(square: THREE.Mesh, terrainData: TerrainData, tileX: number, tileZ: number): void {
+    const material = square.material as THREE.MeshPhongMaterial;
+    material.color.setHex(terrainData.color);
+
+    const squareSize = this.boardManager.getSquareSize();
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const positions = positionAttribute.array as Float32Array;
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const z = positions[i + 2];
+      const localX = x / squareSize;
+      const localZ = z / squareSize;
+      const height = this.getInterpolatedHeight(tileX + localX, tileZ + localZ);
+      positions[i + 1] = height;
+    }
+
+    positionAttribute.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    if (terrainData.type === TerrainType.Tree) {
+      this.addTreeModel(square, terrainData.height);
+    } else if (terrainData.type === TerrainType.Building) {
+      this.addBuildingModel(square, terrainData.height);
+    }
+  }
+
+  private getInterpolatedHeight(x: number, z: number): number {
+    const x0 = Math.floor(x);
+    const z0 = Math.floor(z);
+    const x1 = x0 + 1;
+    const z1 = z0 + 1;
+
+    const h00 = this.boardManager.getTerrainHeight(x0, z0);
+    const h10 = this.boardManager.getTerrainHeight(x1, z0);
+    const h01 = this.boardManager.getTerrainHeight(x0, z1);
+    const h11 = this.boardManager.getTerrainHeight(x1, z1);
+
+    const fx = x - x0;
+    const fz = z - z0;
+
+    const h0 = h00 * (1 - fx) + h10 * fx;
+    const h1 = h01 * (1 - fx) + h11 * fx;
+
+    return (h0 * (1 - fz) + h1 * fz) * this.boardManager.getSquareSize();
+  }
+
+  private addTreeModel(square: THREE.Mesh, baseHeight: number): void {
+    const trunkGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.5, 8);
+    const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.y = 0.25;
+
+    const leavesGeometry = new THREE.ConeGeometry(0.3, 0.7, 8);
+    const leavesMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+    const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+    leaves.position.y = 0.75;
+
+    const tree = new THREE.Group();
+    tree.add(trunk);
+    tree.add(leaves);
+    tree.position.copy(square.position);
+    tree.position.y += baseHeight * this.boardManager.getSquareSize() + 0.25;
+    square.parent?.add(tree);
+  }
+
+  private addBuildingModel(square: THREE.Mesh, baseHeight: number): void {
+    const buildingGeometry = new THREE.BoxGeometry(0.8, 1, 0.8);
+    const buildingMaterial = new THREE.MeshPhongMaterial({ color: 0xA0522D });
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+    building.position.copy(square.position);
+    building.position.y += baseHeight * this.boardManager.getSquareSize() + 0.5;
+    square.parent?.add(building);
+  }
+}
+</FILE>
+<FILE path="./src/lib/game-engine/MapManager/WaveFormCollapse.ts" TARGET>
+import { TerrainType, TerrainData } from './TerrainType';
 import { TerrainGenerator } from './TerrainGenerator';
 
 interface WFCCell {
@@ -696,14 +923,14 @@ export class WaveFormCollapse {
     return this.grid.some(row => row.some(cell => !cell.collapsed));
   }
 
-  private findLowestEntropyCell(grid: WFCCell[][]): { x: number, y: number } {
+  private findLowestEntropyCell(): { x: number, y: number } {
     let minEntropy = Infinity;
     let candidates: { x: number, y: number }[] = [];
 
-    for (let y = 0; y < this.mapHeight; y++) {
-      for (let x = 0; x < this.mapWidth; x++) {
-        if (!grid[y][x].collapsed) {
-          const entropy = grid[y][x].options.length;
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (!this.grid[y][x].collapsed) {
+          const entropy = this.grid[y][x].options.length;
           if (entropy < minEntropy) {
             minEntropy = entropy;
             candidates = [{ x, y }];
@@ -717,27 +944,27 @@ export class WaveFormCollapse {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
-  private collapseCell(grid: WFCCell[][], x: number, y: number): void {
-    const cell = grid[y][x];
+  private collapseCell(x: number, y: number): void {
+    const cell = this.grid[y][x];
     cell.collapsed = true;
     const chosenOption = cell.options[Math.floor(Math.random() * cell.options.length)];
     cell.options = [chosenOption];
   }
 
-  private propagate(grid: WFCCell[][], x: number, y: number): void {
+  private propagate(x: number, y: number): void {
     const queue: [number, number][] = [[x, y]];
     const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
     while (queue.length > 0) {
       const [cx, cy] = queue.shift()!;
-      const currentOptions = grid[cy][cx].options;
+      const currentOptions = this.grid[cy][cx].options;
 
       for (const [dx, dy] of directions) {
         const nx = cx + dx;
         const ny = cy + dy;
 
-        if (nx >= 0 && nx < this.mapWidth && ny >= 0 && ny < this.mapHeight) {
-          const neighbor = grid[ny][nx];
+        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+          const neighbor = this.grid[ny][nx];
           if (!neighbor.collapsed) {
             const validOptions = this.getValidOptions(currentOptions, [dx, dy]);
             const newOptions = neighbor.options.filter(option => validOptions.includes(option));
@@ -797,8 +1024,12 @@ export class WaveFormCollapse {
     }
     return terrainMap;
   }
+  
+  generateChunk(width: number, height: number): Map<string, TerrainData> {
+    // Implement chunk-based WFC algorithm here
+  }
 }
 </FILE>
 <REQUEST>
-fix errors
+Implement chunk-based WFC algorithm here
 </REQUEST>

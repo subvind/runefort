@@ -37,7 +37,6 @@ export class GameEngine {
   }
 
   private init(): void {
-    this.mapManager.generateMap(20, 20); // Generate a 20x20 map
     this.boardManager.createBoard(this.mapManager);
     this.playerManager.createPlayer();
     this.addLighting();
@@ -57,10 +56,12 @@ export class GameEngine {
     requestAnimationFrame(() => this.animate());
     this.playerManager.update();
     const playerPosition = this.playerManager.getPlayerPosition();
+    this.mapManager.updateTerrain(playerPosition.x, playerPosition.z);
+    this.mapManager.applyMapToBoard(playerPosition.x, playerPosition.z);
     this.boardManager.updateBoard(playerPosition);
     this.cameraManager.updateCameraPosition(playerPosition);
     this.renderer.render(this.scene, this.cameraManager.getCamera());
-  }
+  }  
 
   private onWindowResize(container: HTMLElement): void {
     this.cameraManager.updateAspect(container.clientWidth / container.clientHeight);

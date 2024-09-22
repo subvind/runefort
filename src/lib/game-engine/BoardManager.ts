@@ -127,6 +127,13 @@ export class BoardManager {
     return this.squareSize;
   }
 
+  getVisibleRange() {
+    return this.visibleRange;
+  }
+  getTileSize() {
+    return this.tileSize;
+  }
+
   highlightSquare(square: THREE.Mesh): void {
     const geometry = square.geometry as THREE.BufferGeometry;
     const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
