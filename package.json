@@ -1,7 +1,7 @@
 {
   "name": "runefort",
   "productName": "RuneFort",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MMORGP video game",
   "main": ".webpack/main",
   "scripts": {

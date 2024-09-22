@@ -153,4 +153,8 @@ export class BoardManager {
     }
     colors.needsUpdate = true;
   }
+
+  getTerrainHeight(x: number, z: number): number {
+    return this.mapManager.getInterpolatedHeight(x, z);
+  }
 }

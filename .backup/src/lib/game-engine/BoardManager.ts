@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { MapManager, TerrainType } from './MapManager';
+import { MapManager } from './MapManager';
+import { TerrainType } from './MapManager/TerrainType';
 
 export class BoardManager {
   private board: THREE.Group;
@@ -49,17 +50,41 @@ export class BoardManager {
         const worldX = x + tileX * this.tileSize;
         const worldZ = z + tileZ * this.tileSize;
         const terrainType = this.mapManager.getTerrainType(worldX, worldZ);
-        const geometry = new THREE.BoxGeometry(this.squareSize, 0.1, this.squareSize);
+        const geometry = new THREE.BufferGeometry();
         const material = new THREE.MeshPhongMaterial({
-          color: this.getColorForTerrainType(terrainType)
+          color: this.getColorForTerrainType(terrainType),
+          vertexColors: true,
         });
+
+        const positions = [];
+        const colors = [];
+        const indices = [];
+        const color = new THREE.Color(this.getColorForTerrainType(terrainType));
+
+        for (let i = 0; i <= 1; i++) {
+          for (let j = 0; j <= 1; j++) {
+            const vx = worldX + i;
+            const vz = worldZ + j;
+            const height = this.mapManager.getInterpolatedHeight(vx, vz);
+            positions.push(i * this.squareSize, height, j * this.squareSize);
+            colors.push(color.r, color.g, color.b);
+          }
+        }
+
+        indices.push(0, 1, 2, 2, 1, 3);
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
         const square = new THREE.Mesh(geometry, material);
         square.position.set(
           x * this.squareSize - tileOffset + tileX * this.tileSize * this.squareSize,
-          this.mapManager.getInterpolatedHeight(worldX, worldZ),
+          0,
           z * this.squareSize - tileOffset + tileZ * this.tileSize * this.squareSize
         );
-        square.userData.defaultColor = material.color.getHex();
+        square.userData.defaultColor = color.getHex();
         tile.add(square);
       }
     }
@@ -102,11 +127,30 @@ export class BoardManager {
     return this.squareSize;
   }
 
+  getVisibleRange() {
+    return this.visibleRange;
+  }
+  getTileSize() {
+    return this.tileSize;
+  }
+
   highlightSquare(square: THREE.Mesh): void {
-    (square.material as THREE.MeshPhongMaterial).color.setHex(0xFFFF00);
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
+    const highlightColor = new THREE.Color(0xFFFF00);
+    for (let i = 0; i < colors.count; i++) {
+      colors.setXYZ(i, highlightColor.r, highlightColor.g, highlightColor.b);
+    }
+    colors.needsUpdate = true;
   }
 
   resetHighlight(square: THREE.Mesh): void {
-    (square.material as THREE.MeshPhongMaterial).color.setHex(square.userData.defaultColor);
+    const geometry = square.geometry as THREE.BufferGeometry;
+    const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
+    const defaultColor = new THREE.Color(square.userData.defaultColor);
+    for (let i = 0; i < colors.count; i++) {
+      colors.setXYZ(i, defaultColor.r, defaultColor.g, defaultColor.b);
+    }
+    colors.needsUpdate = true;
   }
 }
