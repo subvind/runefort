@@ -1,6 +1,13 @@
 RuneFort
 ========
 
+```bash
+# run game from source code
+git clone https://github.com/subvind/runefort
+cd runefort
+npm install
+npm run start
+```
 
 
 ```bash
